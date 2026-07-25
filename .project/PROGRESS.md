@@ -446,3 +446,34 @@ Both services registered as `CoreServiceProvider` singletons; both controllers w
 - Slack/Discord/Teams/Telegram/Webhook/Push notifications, PDF/Excel/CSV/XML/ZIP/HTML export formats — need external libraries or delivery credentials this project doesn't have
 - `ChangeType::Broken/Deprecated/Moved/Redirected/Disabled/Expired`, `NotificationPriority::High/Low` — need live HTTP-following/SSL checks and a severity axis on `ValidationResult` that don't exist yet
 - Any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue, MCP/Agent Skills/API Catalog/OAuth Discovery modules
+
+## Phase 14 — AI-native modules (MCP, Agent Skills, API Catalog, OAuth Discovery) — 2026-07-26
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-14`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 14: "MCP, Agent Skills, API Catalog, OAuth Discovery," depends on "Phase 11 pattern, resolved Q3," exit criterion "Each has server-card/registry generation, validation, and REST per its spec doc."
+
+### What was built — four modules, each mirroring `Modules/Robots` in shape, none mirroring its doc's full aspirational feature set
+
+- **MCP** (`app/Modules/Mcp/`): generates a real Server Card (name/description/organization/version/authentication), but every `capabilities`/`resources`/`tools`/`prompts` field is honestly empty/false — docs/12-MCP-Spec.md's actual MCP capabilities (Resources, Tools, Prompts, Sampling, Streaming) describe a live JSON-RPC transport this project has never built, and declaring them `true` would be fabricated capability data. Owns the `mcp` Standard (`https://modelcontextprotocol.io`).
+- **Agent Skills** (`app/Modules/AgentSkills/`): publishes a Skill Registry of exactly three skills — but real ones: this plugin's own already-working `GET /score`, `POST /audit/start`, `GET /recommendations` REST actions, not docs/13's fabricated example skills (Book Appointment, Find Doctor, ...) that no WordPress site has out of the box. Owns the `agent-skills` Standard (internal identifier, no confidently-known canonical URL).
+- **API Catalog** (`app/Modules/ApiCatalog/`): generates `/.well-known/api-catalog` from a real, hand-maintained, 83-entry inventory of every route this plugin itself registers in `routes/api.php` (verified via a new cross-check assertion in `ApiRoutesTest`) — not a live `rest_get_server()` introspection, to keep every Generator in this codebase a pure function with no WordPress runtime calls. Owns the `api-catalog` Standard (internal identifier).
+- **OAuth Discovery** (`app/Modules/OAuthDiscovery/`): the one module owning three Standards instead of one (`openid-configuration`, `oauth-authorization-server`, `oauth-protected-resource` — per ADR-001's own ownership table), so it doesn't implement `GeneratorInterface` itself; three small dedicated Generator classes do. `oauth-protected-resource` (RFC 9728) is fully spec-compliant for real, describing this plugin's own genuinely-protected REST namespace. `openid-configuration`/`oauth-authorization-server` deliberately do **not** claim a real OpenID Provider or OAuth Authorization Server exists — neither WordPress core nor this plugin implements one, and OIDC Discovery/RFC 8414 require `authorization_endpoint`/`token_endpoint`/`jwks_uri` as mandatory fields; inventing URLs for infrastructure that doesn't exist would be exactly the fabricated capability data CLAUDE.md prohibits. Both instead publish a real issuer identity plus an explicit "not configured" note.
+
+Each module registered into Discovery/Validation/Generation/Standards exactly like every Phase 8/11 module; `McpController`/`AgentSkillsController`/`ApiCatalogController` mirror `RobotsController`'s index/preview/save/validate/reset shape exactly. OAuth Discovery's REST surface is that same shape times three (one `OAuthDiscoveryFileController` instance per document, parameterized by generator id) plus one combined `GET /oauth-discovery` overview — 16 routes total for this one module.
+
+### Checks — all run for real, clean on the first pass (one real gap caught and fixed)
+
+`composer test` initially failed with 1 error: the existing full-system `RobotsScoringEndToEndTest` boots the *real* `Plugin` and runs every registered validator against every discovered resource (confirmed, not assumed, by this failure) — `OAuthDiscoveryModule`'s validator calls its Generators' real `home_url()`/`rest_url()`, which that test hadn't stubbed. Fixed by adding the two stubs to that one test (the only place in the suite that exercises real cross-module validation end-to-end); documented in DECISIONS.md. Also fixed 4 new controller tests missing a `resourceId()` stub on their mocked `GeneratorInterface` (needed by `GenerationService::publish()`) and one `OAuthDiscoveryControllerTest` case needing all three real Generators registered before calling `index()`.
+
+`composer validate` (valid), `composer test` → `OK (475 tests, 958 assertions)` (up from 369/701), PHPStan level 8 → `[OK] No errors` across 117 files (up from 95), PHPCS hybrid ruleset → 0 errors/0 warnings across 210 files, `composer quality` → all green. `npm run quality` re-verified green (untouched this phase).
+
+### Explicitly out of scope for Phase 14 (deferred)
+
+- Every real MCP transport capability (JSON-RPC resources/tools/prompts execution, sampling, streaming, completion) — no live protocol server exists; this phase only builds the identity/discovery layer
+- A real OpenID Provider / OAuth 2.0 Authorization Server (actual `/oauth/authorize`, `/oauth/token` endpoints) — neither WordPress core nor this plugin implements one; building one is a much larger, separate effort with real security implications, not a documentation-generation task
+- `/skills/{id}`, `/skills/categories`, `/skills/test`, `/skills/import`, `/skills/export`, `DELETE /skills/{id}` (docs/13's own per-skill REST list) — the registry is a fixed, hardcoded set of 3 real skills; no per-skill CRUD exists yet without persisted storage
+- Live `rest_get_server()` route introspection for API Catalog — the hand-maintained static list is real and accurate today but must be updated by hand as routes change (documented, known limitation)
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue, Commerce/Analytics/License/Updater modules, CI matrix, multisite validation, security/performance hardening, packaging

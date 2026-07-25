@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OxyAI\Tests\Unit\EndToEnd;
 
+use Brain\Monkey\Functions;
 use OxyAI\Core\Plugin;
 use OxyAI\DTO\Grade;
 use OxyAI\Services\DiscoveryService;
@@ -24,6 +25,13 @@ final class RobotsScoringEndToEndTest extends TestCase
 {
     public function test_robots_validation_result_flows_into_the_score(): void
     {
+        // OAuthDiscoveryModule's real Generators call these to build their
+        // real issuer/resource identity (see their own docblocks) — every
+        // validator runs against every resource system-wide, so this
+        // full-system test is the one place they're actually invoked.
+        Functions\when('home_url')->justReturn('https://example.test/');
+        Functions\when('rest_url')->justReturn('https://example.test/wp-json/oxy-ai/v1');
+
         $plugin = new Plugin('/plugin.php', '0.1.0');
         $plugin->run();
         $plugin->boot();

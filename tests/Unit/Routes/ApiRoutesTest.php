@@ -7,6 +7,7 @@ namespace OxyAI\Tests\Unit\Routes;
 use Brain\Monkey\Functions;
 use OxyAI\Core\Application;
 use OxyAI\Core\Container;
+use OxyAI\Modules\ApiCatalog\ApiCatalogModule;
 use OxyAI\Repositories\FileRepository;
 use OxyAI\Services\AuditService;
 use OxyAI\Services\AutoFixService;
@@ -67,7 +68,10 @@ final class ApiRoutesTest extends TestCase
             );
         });
 
-        $moduleSlugs = ['robots', 'llms', 'headers', 'markdown', 'content-signals'];
+        $moduleSlugs = [
+            'robots', 'llms', 'headers', 'markdown', 'content-signals',
+            'mcp', 'agent-skills', 'api-catalog',
+        ];
         $moduleGetRoutes = [];
         $modulePostRoutes = [];
 
@@ -79,18 +83,30 @@ final class ApiRoutesTest extends TestCase
             $modulePostRoutes[] = "/{$slug}/reset";
         }
 
+        $oauthDiscoveryDocuments = ['openid-configuration', 'oauth-authorization-server', 'oauth-protected-resource'];
+        $oauthDiscoveryGetRoutes = ['/oauth-discovery'];
+        $oauthDiscoveryPostRoutes = [];
+
+        foreach ($oauthDiscoveryDocuments as $document) {
+            $oauthDiscoveryGetRoutes[] = "/oauth-discovery/{$document}";
+            $oauthDiscoveryGetRoutes[] = "/oauth-discovery/{$document}/preview";
+            $oauthDiscoveryPostRoutes[] = "/oauth-discovery/{$document}/save";
+            $oauthDiscoveryPostRoutes[] = "/oauth-discovery/{$document}/validate";
+            $oauthDiscoveryPostRoutes[] = "/oauth-discovery/{$document}/reset";
+        }
+
         $expectedGetRoutes = array_merge([
             '/discovery', '/discovery/map', '/discovery/resources',
             '/validation', '/generation', '/generation/preview', '/score',
             '/audit', '/recommendations', '/autofix',
             '/monitoring', '/monitoring/status', '/monitoring/events', '/reports',
-        ], $moduleGetRoutes);
+        ], $moduleGetRoutes, $oauthDiscoveryGetRoutes);
         $expectedPostRoutes = array_merge([
             '/validation/run', '/generation/publish', '/generation/rollback',
             '/audit/start', '/recommendations/generate', '/autofix/run', '/autofix/rollback',
             '/monitoring/start', '/monitoring/stop', '/monitoring/reset', '/monitoring/scan',
             '/reports/generate', '/reports/export',
-        ], $modulePostRoutes);
+        ], $modulePostRoutes, $oauthDiscoveryPostRoutes);
 
         Functions\expect('register_rest_route')
             ->times(count($expectedGetRoutes) + count($expectedPostRoutes))
@@ -118,6 +134,10 @@ final class ApiRoutesTest extends TestCase
         $registerRoutes = require dirname(__DIR__, 3) . '/routes/api.php';
         $registerRoutes($app);
 
-        $this->expectNotToPerformAssertions();
+        // Regression guard for ApiCatalogModule's hand-maintained route
+        // list (see its own docblock): every route this file actually
+        // registers must appear in the catalog, and vice versa.
+        $catalogRoutes = json_decode((new ApiCatalogModule())->generate(), true)['routes'];
+        self::assertCount(count($expectedGetRoutes) + count($expectedPostRoutes), $catalogRoutes);
     }
 }

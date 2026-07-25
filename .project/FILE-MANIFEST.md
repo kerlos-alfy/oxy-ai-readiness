@@ -517,3 +517,26 @@ Frontend (run for the first time this phase): `npm run lint` (ESLint, 0 problems
 **369 tests, 701 assertions total repo-wide** (up from 338/622 at the end of Phase 12), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 95 files analysed — up from 86), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 166 files) — all clean on the first run.
 
 **Totals as of end of Phase 13:** adds 5 DTOs + 2 Services + 2 Http Controllers (9 new `app/` source files) + 4 new test files (2 existing files extended) to the Phase 12 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, or MCP/Agent Skills/API Catalog/OAuth Discovery modules exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 14
+| Module | Files | Owns a Standard? | Default content |
+|---|---|---|---|
+| MCP | `app/Modules/Mcp/{McpModule,McpStandard,McpServiceProvider}.php`, `app/Http/Controllers/McpController.php` | Yes — `mcp` (`https://modelcontextprotocol.io`) | Server Card identity (name/description/organization/version); capabilities/resources/tools/prompts honestly empty — no live MCP transport exists |
+| Agent Skills | `app/Modules/AgentSkills/{AgentSkillsModule,AgentSkillsStandard,AgentSkillsServiceProvider}.php`, `app/Http/Controllers/AgentSkillsController.php` | Yes — `agent-skills` (internal identifier) | 3 real skills mapping to this plugin's own working REST actions (Score/Audit/Recommendations) |
+| API Catalog | `app/Modules/ApiCatalog/{ApiCatalogModule,ApiCatalogStandard,ApiCatalogServiceProvider}.php`, `app/Http/Controllers/ApiCatalogController.php` | Yes — `api-catalog` (internal identifier) | Hand-maintained, accurate 83-route inventory of every real `oxy-ai/v1` REST route |
+| OAuth Discovery | `app/Modules/OAuthDiscovery/{OAuthDiscoveryModule,OAuthDiscoveryServiceProvider,OpenIdConfigurationGenerator,OAuthAuthorizationServerGenerator,OAuthProtectedResourceGenerator,OpenIdConfigurationStandard,OAuthAuthorizationServerStandard,OAuthProtectedResourceStandard}.php`, `app/Http/Controllers/{OAuthDiscoveryController,OAuthDiscoveryFileController}.php` | **Three** — `openid-configuration`, `oauth-authorization-server` (RFC 8414), `oauth-protected-resource` (RFC 9728) | `oauth-protected-resource` is fully real (this plugin's own REST namespace); the other two publish only a real issuer + an honest "not configured" note, since no OAuth/OIDC server exists |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/Plugin.php` | Adds all 4 new `ServiceProvider`s to the provider list |
+| `routes/api.php` | Adds `/mcp/*`, `/agent-skills/*`, `/api-catalog/*` (5 routes each) + `/oauth-discovery` + `/oauth-discovery/{document}/*` ×3 (16 routes total) |
+| `tests/Unit/EndToEnd/RobotsScoringEndToEndTest.php` | Adds `home_url()`/`rest_url()` stubs — the first real WordPress function calls reachable from this full-system validate-everything-against-everything test path |
+| `tests/Unit/Routes/ApiRoutesTest.php` | Extended to cover the 44 new routes; adds a regression assertion cross-checking `ApiCatalogModule`'s route count against the actual registered count |
+
+## Tests (`tests/`) — Phase 14
+Each of MCP/Agent Skills/API Catalog has the same test shape as Phase 11's modules: `{X}ModuleTest` (6; API Catalog has no separate SnapshotTest — see its own file's docblock for why), `{X}StandardTest` (3 methods/5 cases), `{X}ServiceProviderTest` (2), `{X}ControllerTest` (7). MCP/Agent Skills also have a `{X}ModuleSnapshotTest` (1). OAuth Discovery has its own shape: `OAuthDiscoveryGeneratorsTest` (6, covering all 3 Generators), `OAuthDiscoveryModuleTest` (7), one `*StandardTest` per Standard (3 files, ~6 cases each), `OAuthDiscoveryServiceProviderTest` (2), `OAuthDiscoveryControllerTest` (2) + `OAuthDiscoveryFileControllerTest` (7).
+
+**475 tests, 958 assertions total repo-wide** (up from 369/701 at the end of Phase 13), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 117 files analysed — up from 95), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 210 files) — all clean after fixing the one real end-to-end test gap and two test-fixture mock-expectation gaps (see DECISIONS.md).
+
+**Totals as of end of Phase 14:** adds 4 Modules (17 Module/Standard/Generator/ServiceProvider files: 3 each for MCP/Agent Skills/API Catalog + 8 for OAuth Discovery's module/2 generators beyond the module itself/3 standards/service provider) + 5 Http Controllers (22 new `app/` source files total) + 22 new test files (2 existing files extended: `RobotsScoringEndToEndTest`, `ApiRoutesTest`) to the Phase 13 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Commerce/Analytics/License/Updater modules, CI matrix, multisite validation pass, security/performance hardening pass, or packaging build exist yet — still deferred to Phase 15.

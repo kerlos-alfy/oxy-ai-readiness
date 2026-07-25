@@ -11,10 +11,14 @@ declare(strict_types=1);
 namespace OxyAI\Core;
 
 use OxyAI\Admin\AdminServiceProvider;
+use OxyAI\Modules\AgentSkills\AgentSkillsServiceProvider;
+use OxyAI\Modules\ApiCatalog\ApiCatalogServiceProvider;
 use OxyAI\Modules\ContentSignals\ContentSignalsServiceProvider;
 use OxyAI\Modules\Headers\HeadersServiceProvider;
 use OxyAI\Modules\Llms\LlmsServiceProvider;
 use OxyAI\Modules\Markdown\MarkdownServiceProvider;
+use OxyAI\Modules\Mcp\McpServiceProvider;
+use OxyAI\Modules\OAuthDiscovery\OAuthDiscoveryServiceProvider;
 use OxyAI\Modules\Probe\ProbeServiceProvider;
 use OxyAI\Modules\Robots\RobotsServiceProvider;
 use OxyAI\Repositories\OptionsRepository;
@@ -52,6 +56,10 @@ final class Plugin
             new HeadersServiceProvider($this->app),
             new MarkdownServiceProvider($this->app),
             new ContentSignalsServiceProvider($this->app),
+            new McpServiceProvider($this->app),
+            new AgentSkillsServiceProvider($this->app),
+            new ApiCatalogServiceProvider($this->app),
+            new OAuthDiscoveryServiceProvider($this->app),
             new AdminServiceProvider($this->app),
         ];
 

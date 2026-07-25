@@ -9,6 +9,8 @@
 declare(strict_types=1);
 
 use OxyAI\Core\Application;
+use OxyAI\Http\Controllers\AgentSkillsController;
+use OxyAI\Http\Controllers\ApiCatalogController;
 use OxyAI\Http\Controllers\AuditController;
 use OxyAI\Http\Controllers\AutoFixController;
 use OxyAI\Http\Controllers\ContentSignalsController;
@@ -17,7 +19,10 @@ use OxyAI\Http\Controllers\GenerationController;
 use OxyAI\Http\Controllers\HeadersController;
 use OxyAI\Http\Controllers\LlmsController;
 use OxyAI\Http\Controllers\MarkdownController;
+use OxyAI\Http\Controllers\McpController;
 use OxyAI\Http\Controllers\MonitoringController;
+use OxyAI\Http\Controllers\OAuthDiscoveryController;
+use OxyAI\Http\Controllers\OAuthDiscoveryFileController;
 use OxyAI\Http\Controllers\RecommendationController;
 use OxyAI\Http\Controllers\ReportController;
 use OxyAI\Http\Controllers\RobotsController;
@@ -76,7 +81,13 @@ use OxyAI\Services\ValidationService;
  * `/monitoring/history` is not implemented (see routes' own controller
  * docblock). Reporting: `/reports/history`, `/reports/templates`,
  * `/reports/share`, `DELETE /reports/cache` (docs/21's own REST list)
- * are not implemented — see `ReportController`'s docblock.
+ * are not implemented — see `ReportController`'s docblock. MCP/Agent
+ * Skills/API Catalog (Phase 14) each mirror the Robots pattern exactly
+ * too. OAuth Discovery mirrors the same shape three times over (one
+ * `OAuthDiscoveryFileController` instance per well-known document)
+ * plus one combined `GET /oauth-discovery` overview — see
+ * `OAuthDiscoveryModule`'s own docblock for why this one module owns
+ * three documents instead of one.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -502,4 +513,161 @@ return static function (Application $app): void {
         'callback' => [$reportController, 'export'],
         'permission_callback' => [$reportController, 'authorize'],
     ]);
+
+    $mcpController = new McpController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/mcp', [
+        'methods' => 'GET',
+        'callback' => [$mcpController, 'index'],
+        'permission_callback' => [$mcpController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/mcp/preview', [
+        'methods' => 'GET',
+        'callback' => [$mcpController, 'preview'],
+        'permission_callback' => [$mcpController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/mcp/save', [
+        'methods' => 'POST',
+        'callback' => [$mcpController, 'save'],
+        'permission_callback' => [$mcpController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/mcp/validate', [
+        'methods' => 'POST',
+        'callback' => [$mcpController, 'validate'],
+        'permission_callback' => [$mcpController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/mcp/reset', [
+        'methods' => 'POST',
+        'callback' => [$mcpController, 'reset'],
+        'permission_callback' => [$mcpController, 'authorize'],
+    ]);
+
+    $agentSkillsController = new AgentSkillsController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/agent-skills', [
+        'methods' => 'GET',
+        'callback' => [$agentSkillsController, 'index'],
+        'permission_callback' => [$agentSkillsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/agent-skills/preview', [
+        'methods' => 'GET',
+        'callback' => [$agentSkillsController, 'preview'],
+        'permission_callback' => [$agentSkillsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/agent-skills/save', [
+        'methods' => 'POST',
+        'callback' => [$agentSkillsController, 'save'],
+        'permission_callback' => [$agentSkillsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/agent-skills/validate', [
+        'methods' => 'POST',
+        'callback' => [$agentSkillsController, 'validate'],
+        'permission_callback' => [$agentSkillsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/agent-skills/reset', [
+        'methods' => 'POST',
+        'callback' => [$agentSkillsController, 'reset'],
+        'permission_callback' => [$agentSkillsController, 'authorize'],
+    ]);
+
+    $apiCatalogController = new ApiCatalogController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/api-catalog', [
+        'methods' => 'GET',
+        'callback' => [$apiCatalogController, 'index'],
+        'permission_callback' => [$apiCatalogController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/api-catalog/preview', [
+        'methods' => 'GET',
+        'callback' => [$apiCatalogController, 'preview'],
+        'permission_callback' => [$apiCatalogController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/api-catalog/save', [
+        'methods' => 'POST',
+        'callback' => [$apiCatalogController, 'save'],
+        'permission_callback' => [$apiCatalogController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/api-catalog/validate', [
+        'methods' => 'POST',
+        'callback' => [$apiCatalogController, 'validate'],
+        'permission_callback' => [$apiCatalogController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/api-catalog/reset', [
+        'methods' => 'POST',
+        'callback' => [$apiCatalogController, 'reset'],
+        'permission_callback' => [$apiCatalogController, 'authorize'],
+    ]);
+
+    $oauthDiscoveryController = new OAuthDiscoveryController($app->make(GenerationService::class));
+
+    register_rest_route('oxy-ai/v1', '/oauth-discovery', [
+        'methods' => 'GET',
+        'callback' => [$oauthDiscoveryController, 'index'],
+        'permission_callback' => [$oauthDiscoveryController, 'authorize'],
+    ]);
+
+    $oauthDiscoveryDocuments = ['openid-configuration', 'oauth-authorization-server', 'oauth-protected-resource'];
+
+    foreach ($oauthDiscoveryDocuments as $oauthDiscoveryDocument) {
+        $oauthDiscoveryFileController = new OAuthDiscoveryFileController(
+            $oauthDiscoveryDocument,
+            $app->make(DiscoveryService::class),
+            $app->make(ValidationService::class),
+            $app->make(GenerationService::class)
+        );
+
+        register_rest_route('oxy-ai/v1', "/oauth-discovery/{$oauthDiscoveryDocument}", [
+            'methods' => 'GET',
+            'callback' => [$oauthDiscoveryFileController, 'index'],
+            'permission_callback' => [$oauthDiscoveryFileController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/oauth-discovery/{$oauthDiscoveryDocument}/preview", [
+            'methods' => 'GET',
+            'callback' => [$oauthDiscoveryFileController, 'preview'],
+            'permission_callback' => [$oauthDiscoveryFileController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/oauth-discovery/{$oauthDiscoveryDocument}/save", [
+            'methods' => 'POST',
+            'callback' => [$oauthDiscoveryFileController, 'save'],
+            'permission_callback' => [$oauthDiscoveryFileController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/oauth-discovery/{$oauthDiscoveryDocument}/validate", [
+            'methods' => 'POST',
+            'callback' => [$oauthDiscoveryFileController, 'validate'],
+            'permission_callback' => [$oauthDiscoveryFileController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/oauth-discovery/{$oauthDiscoveryDocument}/reset", [
+            'methods' => 'POST',
+            'callback' => [$oauthDiscoveryFileController, 'reset'],
+            'permission_callback' => [$oauthDiscoveryFileController, 'authorize'],
+        ]);
+    }
 };
