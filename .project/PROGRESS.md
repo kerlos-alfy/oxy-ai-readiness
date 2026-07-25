@@ -477,3 +477,48 @@ Each module registered into Discovery/Validation/Generation/Standards exactly li
 - `/skills/{id}`, `/skills/categories`, `/skills/test`, `/skills/import`, `/skills/export`, `DELETE /skills/{id}` (docs/13's own per-skill REST list) — the registry is a fixed, hardcoded set of 3 real skills; no per-skill CRUD exists yet without persisted storage
 - Live `rest_get_server()` route introspection for API Catalog — the hand-maintained static list is real and accurate today but must be updated by hand as routes change (documented, known limitation)
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue, Commerce/Analytics/License/Updater modules, CI matrix, multisite validation, security/performance hardening, packaging
+
+## Phase 15 — Remaining modules + hardening — 2026-07-26
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-15`, pushed autonomously. See `.project/RELEASE-GATE-CHECKLIST.md` for the full, honest release-readiness record (including three documented, non-blocking gaps).**
+
+### Scope
+
+`06-Phase-Plan.md` row 15: "Commerce, Analytics, License, Updater; full CI matrix; multisite pass; performance/security audit against 26/27 budgets; packaging/distribution build," exit criterion "Release-gate checklist (28) fully green; package installs cleanly on a fresh WP site." Executed in one continuous cycle immediately after Phase 14, per the user's explicit combined-phase instruction, while keeping Phase 14 and 15 as two separate Git milestones.
+
+### Four remaining modules — all owning no Standard (per ADR-001), all scoped to real, honest content
+
+- **Commerce** (`app/Modules/Commerce/`): docs/05's own Purpose is literally "Future AI Commerce" (x402, Machine Payments, AI Checkout) — none of that exists in WordPress core or this plugin. Reports one real, checkable fact (`class_exists('WooCommerce')`) plus an honest all-false `supports` declaration, rather than fabricating payment infrastructure.
+- **Analytics** (`app/Modules/Analytics/`): "Track AI Usage" needs a persisted counter store (Logger/Cache Service/`oxy_*` table) that has never existed in this project. Declares the 5 real metrics it *would* track, each honestly at zero rather than fabricated traffic numbers.
+- **License** (`app/Modules/License/`): no license server or paid tier exists. Reports this build's own real, current state: `tier: free`, `activated: false`.
+- **Updater** (`app/Modules/Updater/`): no update-check server or WordPress.org listing exists. Reports the plugin's own real current version and the one real channel (`stable`), `update_available: false` rather than a fabricated newer version.
+
+All four mirror `Modules/Headers`'s exact "owns no Standard" shape; their 4×5 REST routes are registered from one shared loop in `routes/api.php` (all four controllers share an identical constructor signature and index/preview/save/validate/reset shape).
+
+### Full CI matrix
+
+`.github/workflows/ci.yml` — new. Three real jobs: `php-quality` (PHP 8.1/8.2/8.3/8.4 matrix — `composer validate`/`lint`/`analyse`/`test`), `frontend-quality` (`npm run lint`/`typecheck`/`test`/`build`), `package` (builds the release zip, runs the new packaging integration test, uploads the artifact). Deliberately does **not** include a real-WordPress/MySQL/browser/WooCommerce/Elementor test matrix — docs/28-Testing-Strategy.md's own CI Matrix/Release Candidate Testing sections describe those, but this project has never built the WordPress test-suite bootstrap (`tests/Integration` had 0 tests before this phase) or any browser-automation infrastructure; fabricating CI jobs referencing infrastructure that doesn't exist would produce a permanently-red, misleading pipeline — worse than the honest, narrower one built here. See DECISIONS.md.
+
+### Multisite validation — a real gap found and fixed
+
+`Plugin::activate()` never handled network-wide activation: WordPress does *not* automatically iterate every site in a network when a super admin network-activates a plugin — the plugin itself must call `switch_to_blog()` per site if it wants every site's own options set. Before this phase, only whichever site happened to be "current" during a network-activation request would ever get real `oxy_ai_installed_at`/`oxy_ai_version` options — every other site in the network would silently never get them. Fixed: `activate(bool $networkWide = false)` now iterates `get_sites()` and runs per-site activation inside `switch_to_blog()`/`restore_current_blog()` when network-activated on a real multisite install; single-site (or non-network-wide) activation is unchanged. `deactivate()` also now accepts `$networkWide` (WordPress passes it automatically) for signature consistency, though it remains a real no-op (nothing exists yet to tear down). 4 new tests in `PluginTest`.
+
+### Security + performance hardening pass — a real audit, clean result
+
+Ran `composer audit` (no advisories) and `npm audit --omit=dev` (0 vulnerabilities in real runtime dependencies — the previously-documented 28 dev-tooling advisories are unchanged, still deliberately deferred per Phase 12's decision, still zero production impact). Manually reviewed: every REST controller's `authorize()` (23/23 use `current_user_can('manage_options')`, no weaker/missing checks); no `eval()`/`unserialize()`/raw superglobal access/direct `$wpdb` usage/debug statements anywhere in `app/`; every hook this plugin registers is admin- or REST-scoped, none run on public visitor-facing requests (confirmed by grep, not assumed) — satisfying CLAUDE.md's "no heavy operations during frontend requests" and docs/27's "No unnecessary frontend scripts" structurally, not just by convention. No fixes were required — this pass affirmed existing discipline from every prior phase rather than finding a fabricated problem to solve.
+
+### Packaging and distribution build
+
+`bin/build-release.sh` — new, real, and actually run: stages only runtime files (`app/`, `routes/`, `dist/`, `oxy-ai-readiness.php`, `uninstall.php`, `composer.json`) into a clean directory, runs a real `composer install --no-dev --optimize-autoloader` inside that staged copy (this project has zero runtime Composer packages — only dev tooling — so this correctly produces just `vendor/autoload.php` + `vendor/composer/*`), zips it, and writes a SHA256 checksum. Verified by `tests/Integration/PackagingTest.php` (3 tests) — the first real content in the Integration testsuite's history. Along the way, fixed a real pre-existing defect: `composer test`/`composer quality` had always run *every* configured PHPUnit testsuite (Unit + Integration) because `phpunit.xml.dist` declares both and the `test` script never scoped itself to one — invisible while Integration was empty, but would have silently made every future `composer quality` run depend on `dist/` existing and spawn subprocesses. Fixed by scoping `test`/`test:coverage` to `--testsuite=Unit` explicitly, restoring the fast, hermetic unit-only gate; `test:integration` also gained a missing `--no-coverage` flag (was failing on a benign "no coverage driver" warning that only surfaced once real tests existed to trigger it).
+
+### Checks — all run for real, clean on the first pass (module code); two real pre-existing script defects caught and fixed (see above)
+
+`composer validate` (valid), `composer test` → `OK (546 tests, 1118 assertions)` (up from 475/958), `composer test:integration` → `OK (3 tests, 1263 assertions)` (up from 0), PHPStan level 8 → `[OK] No errors` across 129 files (up from 117), PHPCS hybrid ruleset → 0 errors/0 warnings across 239 files, `composer quality` → all green. `npm run build` + `npm run quality` → all green.
+
+### Explicitly out of scope / documented gaps (see `.project/RELEASE-GATE-CHECKLIST.md`)
+
+- A real WordPress/MySQL install-activate-deactivate-uninstall smoke test — no live WordPress environment exists in this session
+- A numeric code-coverage threshold gate — no coverage driver (Xdebug/PCOV) installed in this environment
+- A full browser-based accessibility pass across every screen — only `DashboardPage` has an automated (`jest-axe`) a11y check
+- A new-site-created-after-network-activation hook (`wpmu_new_blog`/`wp_initialize_site`) — only network-activation-time provisioning was fixed this phase
+- Live `rest_get_server()` introspection for API Catalog, real MCP transport, real OAuth Authorization Server, per-skill CRUD, `Core/Scheduler.php`, any `oxy_*` database table, Settings Manager, Logger/Cache/Queue services — all still deferred, unchanged from every prior phase's own list

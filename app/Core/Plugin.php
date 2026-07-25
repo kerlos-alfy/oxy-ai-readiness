@@ -12,15 +12,19 @@ namespace OxyAI\Core;
 
 use OxyAI\Admin\AdminServiceProvider;
 use OxyAI\Modules\AgentSkills\AgentSkillsServiceProvider;
+use OxyAI\Modules\Analytics\AnalyticsServiceProvider;
 use OxyAI\Modules\ApiCatalog\ApiCatalogServiceProvider;
+use OxyAI\Modules\Commerce\CommerceServiceProvider;
 use OxyAI\Modules\ContentSignals\ContentSignalsServiceProvider;
 use OxyAI\Modules\Headers\HeadersServiceProvider;
+use OxyAI\Modules\License\LicenseServiceProvider;
 use OxyAI\Modules\Llms\LlmsServiceProvider;
 use OxyAI\Modules\Markdown\MarkdownServiceProvider;
 use OxyAI\Modules\Mcp\McpServiceProvider;
 use OxyAI\Modules\OAuthDiscovery\OAuthDiscoveryServiceProvider;
 use OxyAI\Modules\Probe\ProbeServiceProvider;
 use OxyAI\Modules\Robots\RobotsServiceProvider;
+use OxyAI\Modules\Updater\UpdaterServiceProvider;
 use OxyAI\Repositories\OptionsRepository;
 
 /**
@@ -60,6 +64,10 @@ final class Plugin
             new AgentSkillsServiceProvider($this->app),
             new ApiCatalogServiceProvider($this->app),
             new OAuthDiscoveryServiceProvider($this->app),
+            new CommerceServiceProvider($this->app),
+            new AnalyticsServiceProvider($this->app),
+            new LicenseServiceProvider($this->app),
+            new UpdaterServiceProvider($this->app),
             new AdminServiceProvider($this->app),
         ];
 
@@ -93,9 +101,41 @@ final class Plugin
      * (Phase 1) only ever creates directories *below* its configured
      * base directory, never the base directory itself, so without this
      * every `GenerationService::publish()` call (Phase 6) would fail on
-     * a fresh install where that folder has never been created.
+     * a fresh install where that folder has never been created. This
+     * is filesystem-level (one shared plugin install), so it runs once
+     * regardless of how many sites get activated below — never per-site.
+     *
+     * `$networkWide` is WordPress's own second argument to an
+     * `activate_{plugin}` hook (passed automatically to any registered
+     * callback that accepts it — see `register_activation_hook()`'s own
+     * behavior, not a parameter this project invented). Per
+     * docs/28-Testing-Strategy.md's Supported Environment Matrix
+     * ("Network Activated," "Per-Site Activated"): when a super admin
+     * network-activates the plugin, WordPress does *not* iterate every
+     * site's context on its own — a plugin that wants every site's
+     * `oxy_ai_installed_at`/`oxy_ai_version` options set (not just
+     * whichever site happened to be "current" during the network-admin
+     * request) must do that itself, via `switch_to_blog()` per site.
+     * Without this, only one site in the network would ever get real
+     * install-tracking options — silently wrong on the one Environment
+     * Matrix mode ("Network Activated") this project hadn't verified.
      */
-    public function activate(): void
+    public function activate(bool $networkWide = false): void
+    {
+        if ($networkWide && is_multisite()) {
+            foreach (get_sites(['fields' => 'ids']) as $siteId) {
+                switch_to_blog((int) $siteId);
+                $this->activateCurrentSite();
+                restore_current_blog();
+            }
+        } else {
+            $this->activateCurrentSite();
+        }
+
+        wp_mkdir_p($this->config->pluginDir() . 'storage/generated');
+    }
+
+    private function activateCurrentSite(): void
     {
         $options = new OptionsRepository();
 
@@ -104,16 +144,17 @@ final class Plugin
         }
 
         $options->set('version', $this->config->version());
-
-        wp_mkdir_p($this->config->pluginDir() . 'storage/generated');
     }
 
     /**
      * No scheduled events, transients, or caches exist yet to tear
      * down; this callback exists because WordPress requires one to be
-     * registered, not to fake work that isn't there.
+     * registered, not to fake work that isn't there. Still accepts
+     * `$networkWide` (WordPress passes it automatically, same as
+     * `activate()`) so a future real teardown can use it without
+     * changing this method's signature again.
      */
-    public function deactivate(): void
+    public function deactivate(bool $networkWide = false): void
     {
     }
 

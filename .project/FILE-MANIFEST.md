@@ -540,3 +540,35 @@ Each of MCP/Agent Skills/API Catalog has the same test shape as Phase 11's modul
 **475 tests, 958 assertions total repo-wide** (up from 369/701 at the end of Phase 13), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 117 files analysed — up from 95), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 210 files) — all clean after fixing the one real end-to-end test gap and two test-fixture mock-expectation gaps (see DECISIONS.md).
 
 **Totals as of end of Phase 14:** adds 4 Modules (17 Module/Standard/Generator/ServiceProvider files: 3 each for MCP/Agent Skills/API Catalog + 8 for OAuth Discovery's module/2 generators beyond the module itself/3 standards/service provider) + 5 Http Controllers (22 new `app/` source files total) + 22 new test files (2 existing files extended: `RobotsScoringEndToEndTest`, `ApiRoutesTest`) to the Phase 13 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Commerce/Analytics/License/Updater modules, CI matrix, multisite validation pass, security/performance hardening pass, or packaging build exist yet — still deferred to Phase 15.
+
+## Production source (`app/`) — Phase 15
+| Module | Files | Owns a Standard? | Real content |
+|---|---|---|---|
+| Commerce | `app/Modules/Commerce/{CommerceModule,CommerceServiceProvider}.php`, `app/Http/Controllers/CommerceController.php` | No | `class_exists('WooCommerce')` (real, checkable) + honestly all-false AI-commerce capability declaration |
+| Analytics | `app/Modules/Analytics/{AnalyticsModule,AnalyticsServiceProvider}.php`, `app/Http/Controllers/AnalyticsController.php` | No | 5 declared metrics, each honestly zero — no persisted counter store exists yet |
+| License | `app/Modules/License/{LicenseModule,LicenseServiceProvider}.php`, `app/Http/Controllers/LicenseController.php` | No | Real current state: `tier: free`, `activated: false` |
+| Updater | `app/Modules/Updater/{UpdaterModule,UpdaterServiceProvider}.php`, `app/Http/Controllers/UpdaterController.php` | No | Real current version, `channel: stable`, `update_available: false` |
+
+## Tooling / infra — Phase 15
+| File | Purpose |
+|---|---|
+| `.github/workflows/ci.yml` | Real, working CI: PHP quality (8.1–8.4 matrix), frontend quality, package build + verification — new for this project |
+| `bin/build-release.sh` | Stages runtime-only files, runs `composer install --no-dev` in the staged copy, zips + checksums the result |
+| `.project/RELEASE-GATE-CHECKLIST.md` | New — docs/28's Release Gates mapped to what was actually run/verified this session, including 3 honestly-documented non-blocking gaps |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/Plugin.php` | `activate()`/`deactivate()` now accept WordPress's own `$networkWide` bool; `activate()` iterates `get_sites()` via `switch_to_blog()` when network-activated on real multisite |
+| `app/Modules/ApiCatalog/ApiCatalogModule.php` | Route list extended with the 20 new Commerce/Analytics/License/Updater routes |
+| `routes/api.php` | Adds `/commerce/*`, `/analytics/*`, `/license/*`, `/updater/*` (5 routes each, registered from one shared loop) |
+| `composer.json` | `test`/`test:coverage` scoped to `--testsuite=Unit` (was accidentally unscoped); `test:integration` gained `--no-coverage` |
+| `tests/Unit/Core/PluginTest.php` | +4 tests (network-wide activation, single-site and multisite; deactivate accepts `$networkWide`) |
+| `tests/Unit/Routes/ApiRoutesTest.php` | Extended `moduleSlugs` with the 4 new platform modules |
+
+## Tests (`tests/`) — Phase 15
+Each of Commerce/Analytics/License/Updater has the same test shape as Headers (no Standard): `{X}ModuleSnapshotTest` (1), `{X}ModuleTest` (6), `{X}ServiceProviderTest` (3, including the no-Standard negative assertion), `{X}ControllerTest` (7) — 17 tests × 4 modules worth of files (16 new test files). Plus `tests/Integration/PackagingTest.php` (3 tests — the Integration testsuite's first real content ever).
+
+**PHP: 546 Unit tests, 1118 assertions** (up from 475/958 at the end of Phase 14) + **3 Integration tests, 1263 assertions** (up from 0), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 129 files analysed — up from 117), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 239 files). Frontend: `npm run build` + `npm run quality` re-verified green (unchanged this phase).
+
+**Totals as of end of Phase 15:** adds 4 Modules (8 Module/ServiceProvider files) + 4 Http Controllers (12 new `app/` source files) + 17 new test files (4 existing files extended) + CI workflow + packaging script + release-gate checklist to the Phase 14 count. Remaining, explicitly deferred (see PROGRESS.md and RELEASE-GATE-CHECKLIST.md): a real WordPress install/activate smoke test, a code-coverage threshold gate, a full browser-based accessibility pass, `wpmu_new_blog` provisioning, `Core/Scheduler.php`, any `oxy_*` database table, Settings Manager, Logger/Cache/Queue services, real MCP transport, real OAuth Authorization Server, per-skill CRUD, live API-Catalog introspection.

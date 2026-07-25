@@ -88,11 +88,60 @@ final class PluginTest extends TestCase
         $plugin->activate();
     }
 
+    public function test_activate_network_wide_on_a_single_site_install_only_activates_once(): void
+    {
+        Functions\expect('is_multisite')->once()->andReturn(false);
+        Functions\expect('get_sites')->never();
+        Functions\expect('switch_to_blog')->never();
+        Functions\expect('restore_current_blog')->never();
+
+        Functions\expect('get_option')
+            ->once()
+            ->andReturnUsing(static fn (string $key, mixed $default = false): mixed => $default);
+        Functions\expect('update_option')->twice()->andReturn(true);
+        Functions\expect('wp_mkdir_p')->once()->andReturn(true);
+
+        $plugin = new Plugin('/plugin.php', '0.1.0');
+
+        $this->expectNotToPerformAssertions();
+
+        $plugin->activate(true);
+    }
+
+    public function test_activate_network_wide_on_multisite_activates_every_site(): void
+    {
+        Functions\expect('is_multisite')->once()->andReturn(true);
+        Functions\expect('get_sites')->once()->with(['fields' => 'ids'])->andReturn([1, 2, 3]);
+        Functions\expect('switch_to_blog')->times(3);
+        Functions\expect('restore_current_blog')->times(3);
+
+        Functions\expect('get_option')
+            ->times(3)
+            ->andReturnUsing(static fn (string $key, mixed $default = false): mixed => $default);
+        Functions\expect('update_option')->times(6)->andReturn(true);
+        Functions\expect('wp_mkdir_p')->once()->andReturn(true);
+
+        $plugin = new Plugin('/plugin.php', '0.1.0');
+
+        $this->expectNotToPerformAssertions();
+
+        $plugin->activate(true);
+    }
+
     public function test_deactivate_is_a_safe_no_op(): void
     {
         $plugin = new Plugin('/plugin.php', '0.1.0');
 
         $plugin->deactivate();
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function test_deactivate_accepts_network_wide_and_is_still_a_safe_no_op(): void
+    {
+        $plugin = new Plugin('/plugin.php', '0.1.0');
+
+        $plugin->deactivate(true);
 
         $this->expectNotToPerformAssertions();
     }

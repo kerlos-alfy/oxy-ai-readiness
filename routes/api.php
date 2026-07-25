@@ -10,13 +10,16 @@ declare(strict_types=1);
 
 use OxyAI\Core\Application;
 use OxyAI\Http\Controllers\AgentSkillsController;
+use OxyAI\Http\Controllers\AnalyticsController;
 use OxyAI\Http\Controllers\ApiCatalogController;
 use OxyAI\Http\Controllers\AuditController;
 use OxyAI\Http\Controllers\AutoFixController;
+use OxyAI\Http\Controllers\CommerceController;
 use OxyAI\Http\Controllers\ContentSignalsController;
 use OxyAI\Http\Controllers\DiscoveryController;
 use OxyAI\Http\Controllers\GenerationController;
 use OxyAI\Http\Controllers\HeadersController;
+use OxyAI\Http\Controllers\LicenseController;
 use OxyAI\Http\Controllers\LlmsController;
 use OxyAI\Http\Controllers\MarkdownController;
 use OxyAI\Http\Controllers\McpController;
@@ -27,6 +30,7 @@ use OxyAI\Http\Controllers\RecommendationController;
 use OxyAI\Http\Controllers\ReportController;
 use OxyAI\Http\Controllers\RobotsController;
 use OxyAI\Http\Controllers\ScoreController;
+use OxyAI\Http\Controllers\UpdaterController;
 use OxyAI\Http\Controllers\ValidationController;
 use OxyAI\Services\AuditService;
 use OxyAI\Services\AutoFixService;
@@ -87,7 +91,11 @@ use OxyAI\Services\ValidationService;
  * `OAuthDiscoveryFileController` instance per well-known document)
  * plus one combined `GET /oauth-discovery` overview — see
  * `OAuthDiscoveryModule`'s own docblock for why this one module owns
- * three documents instead of one.
+ * three documents instead of one. Commerce/Analytics/License/Updater
+ * (Phase 15) are the four platform-support modules ADR-001 lists as
+ * owning no Standard (same as Headers) — registered from one shared
+ * loop since all four share the identical index/preview/save/validate/
+ * reset shape and constructor signature.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -668,6 +676,51 @@ return static function (Application $app): void {
             'methods' => 'POST',
             'callback' => [$oauthDiscoveryFileController, 'reset'],
             'permission_callback' => [$oauthDiscoveryFileController, 'authorize'],
+        ]);
+    }
+
+    $platformControllerClasses = [
+        'commerce' => CommerceController::class,
+        'analytics' => AnalyticsController::class,
+        'license' => LicenseController::class,
+        'updater' => UpdaterController::class,
+    ];
+
+    foreach ($platformControllerClasses as $platformSlug => $platformControllerClass) {
+        $platformController = new $platformControllerClass(
+            $app->make(DiscoveryService::class),
+            $app->make(ValidationService::class),
+            $app->make(GenerationService::class)
+        );
+
+        register_rest_route('oxy-ai/v1', "/{$platformSlug}", [
+            'methods' => 'GET',
+            'callback' => [$platformController, 'index'],
+            'permission_callback' => [$platformController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/{$platformSlug}/preview", [
+            'methods' => 'GET',
+            'callback' => [$platformController, 'preview'],
+            'permission_callback' => [$platformController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/{$platformSlug}/save", [
+            'methods' => 'POST',
+            'callback' => [$platformController, 'save'],
+            'permission_callback' => [$platformController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/{$platformSlug}/validate", [
+            'methods' => 'POST',
+            'callback' => [$platformController, 'validate'],
+            'permission_callback' => [$platformController, 'authorize'],
+        ]);
+
+        register_rest_route('oxy-ai/v1', "/{$platformSlug}/reset", [
+            'methods' => 'POST',
+            'callback' => [$platformController, 'reset'],
+            'permission_callback' => [$platformController, 'authorize'],
         ]);
     }
 };

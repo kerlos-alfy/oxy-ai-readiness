@@ -28,9 +28,9 @@
         }
     },
     "scripts": {
-        "test": "phpunit --no-coverage",
-        "test:coverage": "phpunit",
-        "test:integration": "phpunit --testsuite=Integration",
+        "test": "phpunit --testsuite=Unit --no-coverage",
+        "test:coverage": "phpunit --testsuite=Unit",
+        "test:integration": "phpunit --testsuite=Integration --no-coverage",
         "analyse": "phpstan analyse --memory-limit=512M",
         "lint": "phpcs",
         "quality": [

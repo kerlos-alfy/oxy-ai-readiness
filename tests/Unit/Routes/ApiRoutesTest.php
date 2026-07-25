@@ -71,6 +71,7 @@ final class ApiRoutesTest extends TestCase
         $moduleSlugs = [
             'robots', 'llms', 'headers', 'markdown', 'content-signals',
             'mcp', 'agent-skills', 'api-catalog',
+            'commerce', 'analytics', 'license', 'updater',
         ];
         $moduleGetRoutes = [];
         $modulePostRoutes = [];
