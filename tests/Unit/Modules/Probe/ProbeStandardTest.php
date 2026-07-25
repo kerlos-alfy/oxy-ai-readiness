@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OxyAI\Tests\Unit\Modules\Probe;
 
+use OxyAI\DTO\ValidationStatus;
 use OxyAI\Exceptions\ModuleException;
+use OxyAI\Modules\Probe\ProbeModule;
 use OxyAI\Modules\Probe\ProbeStandard;
 use OxyAI\Tests\Unit\TestCase;
 
@@ -12,7 +14,7 @@ final class ProbeStandardTest extends TestCase
 {
     public function test_exposes_its_identity(): void
     {
-        $standard = new ProbeStandard();
+        $standard = new ProbeStandard(new ProbeModule());
 
         self::assertSame('probe', $standard->id());
         self::assertSame('Probe', $standard->name());
@@ -22,32 +24,49 @@ final class ProbeStandardTest extends TestCase
 
     public function test_supports_nothing_and_migrate_is_a_safe_no_op(): void
     {
-        $standard = new ProbeStandard();
+        $standard = new ProbeStandard(new ProbeModule());
 
         self::assertFalse($standard->supports('anything'));
 
         $standard->migrate('0.0.9');
     }
 
+    public function test_discover_delegates_to_the_owning_module(): void
+    {
+        $module = new ProbeModule();
+        $standard = new ProbeStandard($module);
+
+        self::assertEquals($module->discover(), $standard->discover());
+    }
+
+    public function test_validate_delegates_to_the_owning_module_using_its_own_discovered_resource(): void
+    {
+        $module = new ProbeModule();
+        $standard = new ProbeStandard($module);
+
+        $result = $standard->validate();
+
+        self::assertSame(ValidationStatus::Pass, $result->status);
+        self::assertSame('probe-fixture', $result->resourceId);
+    }
+
     /**
      * @return iterable<string, array{0: string}>
      */
-    public static function delegateMethodProvider(): iterable
+    public static function unimplementedDelegateMethodProvider(): iterable
     {
-        yield 'discover' => ['discover'];
         yield 'generate' => ['generate'];
-        yield 'validate' => ['validate'];
         yield 'score' => ['score'];
         yield 'monitor' => ['monitor'];
         yield 'report' => ['report'];
     }
 
     /**
-     * @dataProvider delegateMethodProvider
+     * @dataProvider unimplementedDelegateMethodProvider
      */
-    public function test_delegate_methods_throw_since_no_engine_is_registered_yet(string $method): void
+    public function test_delegate_methods_without_an_engine_yet_throw(string $method): void
     {
-        $standard = new ProbeStandard();
+        $standard = new ProbeStandard(new ProbeModule());
 
         $this->expectException(ModuleException::class);
 

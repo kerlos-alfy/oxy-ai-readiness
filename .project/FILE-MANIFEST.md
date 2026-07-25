@@ -223,3 +223,37 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **123 tests, 165 assertions total repo-wide** (up from 109/142 at the end of Phase 3), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 38 files analysed — up from 32, confirming `routes/` is genuinely covered), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 65 files).
 
 **Totals as of end of Phase 4:** adds 1 DTO + 1 Contract + 1 Service + 1 Core ServiceProvider + 1 Http Controller + 1 routes file (6 new `app/`-or-root source files) + 4 new test files (3 existing files extended) to the Phase 3 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, any write/mutating REST route, or Validation/Generation/Scoring/Monitoring/Reporting engine exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 5
+| File | Purpose |
+|---|---|
+| `app/DTO/ValidationStatus.php` | Native backed enum: Pass/Warning/Fail/Info/Skipped/Unknown |
+| `app/DTO/ValidationResult.php` | Outcome of one validator run (resourceId/validator/status/message/executionTimeMs) + `toArray()` |
+| `app/Contracts/ValidatorInterface.php` | Per-module validator contract: `validate(DiscoveredResource): ValidationResult` |
+| `app/Services/ValidationService.php` | The Validation Engine: registerValidator/validate/has/count, fires `oxy_ai_validation_started`/`completed`/`passed`/`failed`/`warning` |
+| `app/Http/Controllers/ValidationController.php` | `index` (GET /validation) + `run` (POST /validation/run, validates `resource_id` input) |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/CoreServiceProvider.php` | Also binds `ValidationService` as a Container singleton |
+| `app/Modules/Probe/ProbeModule.php` | Now also implements `ValidatorInterface` — deterministic pass-iff-active rule |
+| `app/Modules/Probe/ProbeServiceProvider.php` | Registers the probe module as a validator too; constructs `ProbeStandard` with the module |
+| `app/Modules/Probe/ProbeStandard.php` | `discover()`/`validate()` now delegate to the owning module for real (Discovery/Validator exist as of Phases 4–5) instead of throwing; `generate()`/`score()`/`monitor()`/`report()` still throw |
+| `routes/api.php` | Adds `GET /validation`, `POST /validation/run` |
+| `composer.json` | `analyse` script now bakes in `--memory-limit=512M` — see Decisions |
+
+## Tests (`tests/`) — Phase 5
+| File | Tests |
+|---|---|
+| `tests/Unit/Services/ValidationServiceTest.php` | 4 |
+| `tests/Unit/Http/Controllers/ValidationControllerTest.php` | 5 |
+| `tests/Unit/Modules/Probe/ProbeModuleTest.php` | +2 (validate pass/fail) |
+| `tests/Unit/Modules/Probe/ProbeStandardTest.php` | rewritten: 5 methods (discover/validate delegation + 4-case data provider for the still-throwing methods) |
+| `tests/Unit/Modules/Probe/ProbeServiceProviderTest.php` | extended to assert validator registration |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +1 (ValidationService singleton) |
+| `tests/Unit/Routes/ApiRoutesTest.php` | rewritten to cover all 5 routes (3 Discovery + 2 Validation) |
+
+**135 tests, 190 assertions total repo-wide** (up from 123/165 at the end of Phase 4), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 43 files analysed — up from 38), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 72 files).
+
+**Totals as of end of Phase 5:** adds 2 DTOs + 1 Contract + 1 Service + 1 Http Controller (5 new `app/` source files) + 2 new test files (5 existing files extended) to the Phase 4 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, or Generation/Scoring/Monitoring/Reporting engine exist yet — still deferred to later phases.

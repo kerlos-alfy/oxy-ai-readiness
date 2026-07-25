@@ -166,3 +166,30 @@ Canonical, ongoing decision log starting at Phase 1. Phase 0/0.5 decisions (incl
 **Context:** `RestServiceProvider::boot()` needs to resolve the plugin's `Hooks` registrar from the Container to register `rest_api_init` through it (keeping the "every hook goes through `Hooks`" rule from Phase 2). If `CoreServiceProvider` bound a freshly-constructed `Hooks` instance instead, it would diverge from the instance `Kernel` already uses for `plugins_loaded` — two separate registrars with inconsistent bookkeeping.
 **Rationale:** Caught before writing the wiring, not after a test failure: `Hooks` needed the same single-shared-instance treatment `Config` already gets in `Plugin`'s constructor (construct once, bind that exact closure-captured instance), not a per-provider `new Hooks()`.
 **Affects:** `app/Core/Plugin.php`, `app/Core/RestServiceProvider.php`.
+
+## Phase 5 — Validation Engine — 2026-07-25
+
+**Decision:** Fixed `ProbeStandard::discover()`/`validate()` to delegate to the owning module for real, rather than continuing to throw as they did through the end of Phase 4.
+**Context:** Phase 3's own `DECISIONS.md` entry explicitly predicted this: "their Standard delegate methods stop throwing once their owning Module actually registers a Generator/Validator/etc." Phase 4 gave `ProbeModule` a real `discover()` (via `DiscoveryInterface`) but never updated `ProbeStandard::discover()` to match — a staleness bug by the project's own stated standard, not new scope invented this phase.
+**Rationale:** Building `ValidatorInterface`/`ValidationService` this phase made the same staleness undeniable for `validate()` too (the module now has a real validator), so both were fixed together rather than fixing one and leaving the other's already-flagged inconsistency in place. `ProbeStandard`'s constructor now takes the owning `ProbeModule` directly (not an interface — a Standard is owned by exactly one Module per ADR-001, so depending on its concrete type is architecturally fine, not a cross-module dependency).
+**Affects:** `app/Modules/Probe/ProbeStandard.php`, `app/Modules/Probe/ProbeServiceProvider.php` (now passes `$module` into `ProbeStandard`'s constructor), `tests/Unit/Modules/Probe/ProbeStandardTest.php` (rewritten: `discover()`/`validate()` get real assertions instead of joining the throws-data-provider).
+
+**Decision:** `ValidatorInterface::validate()` returns `ValidationResult` directly (including its own `executionTimeMs`, self-measured via `microtime()`), rather than the engine (`ValidationService`) measuring timing and wrapping a separate, timing-free outcome DTO.
+**Context:** A cleaner separation (validator returns pure pass/fail + message; engine adds resourceId/validator-id/timing) would need a second DTO and `ValidationResult`'s `readonly` properties would prevent the engine from "adding" timing after the fact without reconstructing the object.
+**Rationale:** With only the Probe fixture validator existing (a same-microsecond comparison), engine-measured vs. self-reported timing makes no practical difference yet, and one DTO is simpler than two. Flagged as a design point to revisit once a real, meaningfully-slow validator exists (a validator with a slow/unreliable clock could self-report misleading timing) — not treated as settled forever.
+**Affects:** `app/Contracts/ValidatorInterface.php`, `app/DTO/ValidationResult.php`, every future validator implementation.
+
+**Decision:** `ValidationStatus` is a native PHP 8.1 backed enum, not a bare string constant/union type.
+**Context:** docs/16-Validation-Engine.md's "VALIDATION RESULTS" section is a fixed, closed set (PASS/WARNING/FAIL/INFO/SKIPPED/UNKNOWN); the Phase 5 exit criterion itself uses the word "deterministically."
+**Rationale:** A backed enum makes an invalid status a compile-time/static-analysis error rather than a runtime typo risk, directly reinforcing "deterministic" — stronger than the plain-string convention used for `ModuleRegistry`'s enabled/disabled bookkeeping (which only has two states and no external vocabulary to typo).
+**Affects:** `app/DTO/ValidationStatus.php`, `app/DTO/ValidationResult.php`, `app/Services/ValidationService.php`'s `match()` on status.
+
+**Decision:** `POST /validation/run` was implemented this phase, unlike Phase 4's deliberate deferral of `POST /discovery/scan`.
+**Context:** Phase 4 deferred its POST route specifically because the exit criterion said "read-only, no writes." Phase 5's exit criterion has no such restriction.
+**Rationale:** Running a validator against an already-discovered resource is a pure computation — it doesn't write to WordPress, the filesystem, or a database, unlike a hypothetical Discovery "scan" that (in later phases, once real providers exist) could touch external resources. The same `manage_options`-gated, unsecured-against-rate-limiting posture already accepted for the GET routes applies equally here; there was no new security gap introduced by making this one a POST.
+**Affects:** `routes/api.php`, `app/Http/Controllers/ValidationController.php`.
+
+**Decision:** Fixed `composer.json`'s `analyse` script to permanently include `--memory-limit=512M`.
+**Context:** `composer quality`/`composer analyse` (the actual documented commands) crashed with a PHPStan OOM error against the default 128M limit once this phase's codebase grew past 38 files. Phase 1's own report had identified this exact problem and worked around it with a manual CLI flag every session since — but never fixed the underlying script, so any future session or CI run using the documented `composer analyse` command (not knowing to append the flag) would have hit the same crash.
+**Rationale:** A workaround repeated by hand every session, rather than fixed once at its source, isn't really fixed — caught by taking the "run all quality gates" instruction literally (via the actual `composer` scripts, not just ad hoc CLI flags) rather than continuing to paper over it.
+**Affects:** `composer.json`.

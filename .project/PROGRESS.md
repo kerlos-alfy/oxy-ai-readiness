@@ -157,3 +157,36 @@ One real PHPStan finding fixed properly (not suppressed): `DiscoveryService::map
 - Custom capability registration (`manage_oxy`, `view_audit`, etc. per docs/26-Security-Spec.md) — Discovery routes use the built-in `manage_options` capability as an interim default
 - Rate limiting, request signing, audit logging for REST access (docs/24/26's API Security lists) — no Cache/Logger service exists yet to back them
 - `package.json` / frontend tooling
+
+## Phase 5 — Validation Engine — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-5`, pushed autonomously per the user's standing authorization for the remainder of this project.**
+
+### Scope
+
+`06-Phase-Plan.md` row 5: "Centralized validator framework, `ValidatorInterface`, `/validation/*` REST," exit criterion "A registered validator runs against a Discovery Map entry and returns PASS/WARN/FAIL deterministically."
+
+### What was built
+
+- `app/DTO/ValidationStatus.php` — native backed enum (Pass/Warning/Fail/Info/Skipped/Unknown per docs/16-Validation-Engine.md), enforcing "deterministic" at the type level rather than by string convention.
+- `app/DTO/ValidationResult.php` — one validator's verdict on one resource, aligned with `oxy_validation_results`'s columns in docs/25-Database-Schema.md.
+- `app/Contracts/ValidatorInterface.php` — per-module validator contract (docs/22-Plugin-SDK.md's SDK Interfaces list).
+- `app/Services/ValidationService.php` — the engine: register validators, run every registered one against a resource, fire `oxy_ai_validation_started`/`completed` always and `passed`/`failed`/`warning` per result (docs/16's Events list, minus `AutoFixSuggested` — no AutoFix engine exists yet).
+- `app/Http/Controllers/ValidationController.php` + `routes/api.php` additions — `GET /validation` (validator count) and `POST /validation/run` (validates `resource_id` input: 400 if missing, 404 if the Discovery Map doesn't have it, 200 with results otherwise).
+- `app/Modules/Probe/ProbeModule.php` now also implements `ValidatorInterface`: pass iff the resource's own reported `status` is `"active"` — deterministic, proving the exit criterion end-to-end.
+- **Fixed a real, previously-flagged staleness bug in `ProbeStandard`:** Phase 3's own decision log predicted "their Standard delegate methods stop throwing once their owning Module actually registers a Generator/Validator/etc." — but Phase 4 gave `ProbeModule` a real Discovery provider without ever updating `ProbeStandard::discover()` to stop throwing. Fixed now: `discover()`/`validate()` delegate to the owning module for real; `generate()`/`score()`/`monitor()`/`report()` still throw (no Generation/Scoring/Monitoring/Reporting engine exists).
+- 2 new test files + 5 extended existing ones.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (135 tests, 190 assertions)` (up from 123/165), PHPStan level 8 → `[OK] No errors` across 43 files (up from 38), PHPCS hybrid ruleset → 0 errors/0 warnings across 72 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+**A real, previously-latent infra bug caught and fixed:** `composer analyse`/`composer quality` (the actual documented commands, as opposed to the manual `--memory-limit=512M` flag used ad hoc since Phase 1) crashed with a PHPStan out-of-memory error the first time this phase's larger codebase pushed past the default 128M limit. Phase 1's own report had already identified this exact problem and worked around it manually every session since, but never updated `composer.json`'s `analyse` script to bake the fix in — a latent gap that would have bitten any future session or CI run relying on the documented command. Fixed: `"analyse": "phpstan analyse --memory-limit=512M"`.
+
+### Explicitly out of scope for Phase 5 (deferred)
+- Generation/Scoring/Monitoring/Reporting engines and their REST routes
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Any real, user-facing Module
+- `docs/16-Validation-Engine.md`'s `oxy_ai_validation_before`/`after`/`rules`/`result` filters — not implemented; no consumer exists yet to justify the extensibility surface
+- Custom capability registration — `/validation/*` reuses the same `manage_options` interim default as `/discovery/*`
+- `package.json` / frontend tooling

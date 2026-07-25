@@ -14,14 +14,15 @@ use OxyAI\Core\ModuleRegistry;
 use OxyAI\Core\StandardsRegistry;
 use OxyAI\Providers\ServiceProvider;
 use OxyAI\Services\DiscoveryService;
+use OxyAI\Services\ValidationService;
 
 /**
  * The per-module `{ModuleName}ServiceProvider` half of the canonical
  * module template (docs/04-Folder-Structure.md, ADR-002). Requires
  * `CoreServiceProvider` to have already bound `ModuleRegistry`/
- * `StandardsRegistry`/`DiscoveryService` — Bootstrap runs every
- * provider's register() before any boot(), and lists Core's provider
- * first.
+ * `StandardsRegistry`/`DiscoveryService`/`ValidationService` — Bootstrap
+ * runs every provider's register() before any boot(), and lists Core's
+ * provider first.
  */
 final class ProbeServiceProvider extends ServiceProvider
 {
@@ -31,7 +32,8 @@ final class ProbeServiceProvider extends ServiceProvider
 
         $this->app->make(ModuleRegistry::class)->register($module);
         $this->app->make(DiscoveryService::class)->registerProvider($module->id(), $module);
-        $this->app->make(StandardsRegistry::class)->register(new ProbeStandard());
+        $this->app->make(ValidationService::class)->registerValidator($module->id(), $module);
+        $this->app->make(StandardsRegistry::class)->register(new ProbeStandard($module));
     }
 
     public function boot(): void

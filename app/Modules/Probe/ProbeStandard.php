@@ -19,12 +19,22 @@ use OxyAI\Exceptions\ModuleException;
  * end-to-end. discover()/generate()/validate()/score()/monitor()/
  * report() are meant to delegate to the owning Module's registered
  * Discovery provider/Generator/Validator/ScoreProvider/Monitor/
- * Reporter — none of which exist yet (those engines are later phases),
- * so ProbeModule genuinely has none registered. Throwing here reports
- * that honestly instead of fabricating a result.
+ * Reporter.
+ *
+ * As of Phase 4/5, ProbeModule genuinely has a Discovery provider and a
+ * Validator (it implements both interfaces), so discover()/validate()
+ * now delegate to it for real, per the expectation set in Phase 3's own
+ * decision log ("their Standard delegate methods stop throwing once
+ * their owning Module actually registers a Generator/Validator/etc.").
+ * generate()/score()/monitor()/report() still throw — Generation,
+ * Scoring, Monitoring, and Reporting engines don't exist yet.
  */
 final class ProbeStandard implements StandardInterface
 {
+    public function __construct(private readonly ProbeModule $module)
+    {
+    }
+
     public function id(): string
     {
         return 'probe';
@@ -47,7 +57,7 @@ final class ProbeStandard implements StandardInterface
 
     public function discover(): mixed
     {
-        throw $this->noDelegate('Discovery provider');
+        return $this->module->discover();
     }
 
     public function generate(): mixed
@@ -57,7 +67,14 @@ final class ProbeStandard implements StandardInterface
 
     public function validate(): mixed
     {
-        throw $this->noDelegate('Validator');
+        $resources = $this->module->discover();
+        $resource = $resources[0] ?? null;
+
+        if ($resource === null) {
+            throw new ModuleException('Probe module has no discovered resource to validate.');
+        }
+
+        return $this->module->validate($resource);
     }
 
     public function score(): mixed

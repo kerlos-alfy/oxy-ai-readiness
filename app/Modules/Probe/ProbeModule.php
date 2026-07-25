@@ -12,7 +12,10 @@ namespace OxyAI\Modules\Probe;
 
 use OxyAI\Contracts\DiscoveryInterface;
 use OxyAI\Contracts\ModuleInterface;
+use OxyAI\Contracts\ValidatorInterface;
 use OxyAI\DTO\DiscoveredResource;
+use OxyAI\DTO\ValidationResult;
+use OxyAI\DTO\ValidationStatus;
 
 /**
  * The "one minimal internal 'probe' module ... for validation only (not
@@ -29,8 +32,14 @@ use OxyAI\DTO\DiscoveredResource;
  * pipeline end-to-end per the Phase 4 exit criterion ("Discovery Map
  * correctly lists a known fixture resource") without discovering any
  * real site data.
+ *
+ * Also implements ValidatorInterface (Phase 5): a deterministic rule
+ * (pass iff the resource's own reported status is "active") proving the
+ * Validation Engine end-to-end per the Phase 5 exit criterion ("A
+ * registered validator runs against a Discovery Map entry and returns
+ * PASS/WARN/FAIL deterministically").
  */
-final class ProbeModule implements ModuleInterface, DiscoveryInterface
+final class ProbeModule implements ModuleInterface, DiscoveryInterface, ValidatorInterface
 {
     public function id(): string
     {
@@ -114,5 +123,21 @@ final class ProbeModule implements ModuleInterface, DiscoveryInterface
                 lastChecked: gmdate('c')
             ),
         ];
+    }
+
+    public function validate(DiscoveredResource $resource): ValidationResult
+    {
+        $start = microtime(true);
+        $status = $resource->status === 'active' ? ValidationStatus::Pass : ValidationStatus::Fail;
+
+        return new ValidationResult(
+            resourceId: $resource->id,
+            validator: $this->id(),
+            status: $status,
+            message: $status === ValidationStatus::Pass
+                ? 'Resource status is active.'
+                : sprintf('Resource status "%s" is not active.', $resource->status),
+            executionTimeMs: (microtime(true) - $start) * 1000
+        );
     }
 }

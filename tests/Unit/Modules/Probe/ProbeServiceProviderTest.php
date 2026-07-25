@@ -11,11 +11,12 @@ use OxyAI\Core\ModuleRegistry;
 use OxyAI\Core\StandardsRegistry;
 use OxyAI\Modules\Probe\ProbeServiceProvider;
 use OxyAI\Services\DiscoveryService;
+use OxyAI\Services\ValidationService;
 use OxyAI\Tests\Unit\TestCase;
 
 final class ProbeServiceProviderTest extends TestCase
 {
-    public function test_register_registers_the_probe_module_standard_and_discovery_provider(): void
+    public function test_register_registers_the_probe_module_standard_discovery_and_validator(): void
     {
         $app = new Application(new Container());
         (new CoreServiceProvider($app))->register();
@@ -25,6 +26,7 @@ final class ProbeServiceProviderTest extends TestCase
 
         self::assertTrue($app->make(ModuleRegistry::class)->has('probe'));
         self::assertTrue($app->make(StandardsRegistry::class)->has('probe'));
+        self::assertTrue($app->make(ValidationService::class)->has('probe'));
 
         $resources = $app->make(DiscoveryService::class)->resources();
         self::assertCount(1, $resources);

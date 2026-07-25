@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OxyAI\Tests\Unit\Modules\Probe;
 
+use OxyAI\DTO\DiscoveredResource;
+use OxyAI\DTO\ValidationStatus;
 use OxyAI\Modules\Probe\ProbeModule;
 use OxyAI\Tests\Unit\TestCase;
 
@@ -53,5 +55,37 @@ final class ProbeModuleTest extends TestCase
         self::assertSame('probe-fixture', $resources[0]->id);
         self::assertSame('probe', $resources[0]->module);
         self::assertSame('healthy', $resources[0]->health);
+    }
+
+    public function test_validate_passes_an_active_resource(): void
+    {
+        $module = new ProbeModule();
+
+        $result = $module->validate($module->discover()[0]);
+
+        self::assertSame(ValidationStatus::Pass, $result->status);
+        self::assertSame('probe-fixture', $result->resourceId);
+        self::assertSame('probe', $result->validator);
+    }
+
+    public function test_validate_fails_a_non_active_resource(): void
+    {
+        $module = new ProbeModule();
+        $resource = new DiscoveredResource(
+            id: 'other',
+            type: 'internal-fixture',
+            location: 'internal://other',
+            status: 'inactive',
+            version: '0.1.0',
+            module: 'probe',
+            health: 'unhealthy',
+            dependencies: [],
+            source: 'fixture',
+            lastChecked: '2026-07-25T00:00:00+00:00'
+        );
+
+        $result = $module->validate($resource);
+
+        self::assertSame(ValidationStatus::Fail, $result->status);
     }
 }
