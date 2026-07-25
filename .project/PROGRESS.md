@@ -320,3 +320,33 @@ One narrow PHPCS false-positive fixed with an inline suppression, not a ruleset-
 - Third-party custom rule registration (docs/06's `oxy_ai_register_rules` extensibility hook)
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
 - Any other real feature Module, any admin UI, `package.json`/frontend tooling
+
+## Phase 10 — Recommendation + Auto Fix Engines — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-10`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 10: "Issue→recommendation pipeline; safe/confirmation/developer fix tiers with backup→execute→verify→rollback," exit criterion "AutoFix on a fixture issue is reversible; rollback test suite passes per 28's AutoFix Safety Tests."
+
+### What was built
+
+- `app/DTO/Recommendation.php`, `app/Services/RecommendationService.php` — turns FAIL/WARNING `ValidationResult`s into `Recommendation`s (narrowed from docs/19's fuller Recommendation Object — Estimated Impact/Effort/Time/Documentation/Related Issues/Dependencies need data this phase's engines don't produce). `autoFixAvailable` is a genuine capability check against `GenerationService`, not a guess.
+- `app/DTO/FixTier.php`, `app/DTO/FixResult.php`, `app/Services/AutoFixService.php` — the Auto Fix Engine, deliberately built by **reusing** `GenerationService`'s existing backup-then-write pipeline (Phase 6) as the Backup/Execute/Validate stages, then adding its own explicit post-fix Verify step (a second, independent validation pass after the write) before declaring success — matching docs/18's distinct Execute → Validate → Verify pipeline stages rather than collapsing them into one check. If verification still fails after a successful write, `AutoFixService` calls `GenerationService::rollback()` to restore the prior version.
+- `FixTier::Safe` runs immediately; `Confirmation`/`Developer` require an explicit `confirmed` argument — modeling "requires confirmation" honestly rather than faking a confirmation UI (Admin UI is a later phase).
+- `app/Http/Controllers/RecommendationController.php`, `app/Http/Controllers/AutoFixController.php` + `routes/api.php` additions.
+- `app/Services/GenerationService.php` gained one small addition: `resourceIdFor()`, letting `AutoFixService` re-check a resource after publishing without a separate lookup mechanism.
+- **The exit criterion's own explicit safety test suite**, per docs/28-Testing-Strategy.md's AUTOFIX TESTING/ROLLBACK TESTING sections, scoped to what current infrastructure can genuinely exercise: Backup Creation, Execution, Validation, Verification, Success Report, and rollback after **Validation Failure** and **Filesystem Failure** specifically. Database Failure, Timeout, Permission Change, Dependency Conflict, Interrupted Request, and Partial Batch Execution are honestly out of scope — no DB, async/network layer, capability-registration system, module-dependency system, or batch-fix feature exists yet. Logged in `DECISIONS.md`.
+- 4 new test files + 3 extended existing ones.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (249 tests, 424 assertions)` (up from 220/368), PHPStan level 8 → `[OK] No errors` across 70 files (up from 63), PHPCS hybrid ruleset → 0 errors/0 warnings across 117 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+### Explicitly out of scope for Phase 10 (deferred)
+- `/autofix/batch`, `/autofix/history` (docs/18's own REST list) — batch needs multi-issue orchestration, history needs persisted storage
+- Rollback testing for Database Failure/Timeout/Permission Change/Dependency Conflict/Interrupted Request/Partial Batch Execution — no infrastructure exists yet to test any of these against
+- "Update Score" as part of the fix pipeline (docs/18) — left to the caller (e.g. re-run `AuditService::scan()` after fixing) rather than baked into `AutoFixService`, to avoid conflating "fix one resource" with "recompute the whole site's score"
+- Logging (no Logger service exists yet), third-party custom fix registration
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Monitoring/Reporting engines, any other real feature Module, any admin UI, `package.json`/frontend tooling

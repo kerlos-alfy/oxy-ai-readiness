@@ -106,6 +106,17 @@ final class GenerationService
     }
 
     /**
+     * The Discovery Map entry id a registered generator's output
+     * corresponds to — lets a caller (e.g. `AutoFixService`) re-check
+     * that resource after publishing without needing its own separate
+     * generator-to-resource lookup.
+     */
+    public function resourceIdFor(string $id): string
+    {
+        return $this->get($id)->resourceId();
+    }
+
+    /**
      * Validates the generator's Discovery Map entry, generates its
      * output, backs up any existing content, and writes the new
      * content — in that order, so a validation or write failure never

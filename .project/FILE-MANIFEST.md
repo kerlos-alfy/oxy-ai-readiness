@@ -378,3 +378,36 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **220 tests, 368 assertions total repo-wide** (up from 207/345 at the end of Phase 8), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 63 files analysed — up from 59), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 106 files).
 
 **Totals as of end of Phase 9:** adds 2 DTOs + 1 Service + 1 Http Controller (4 new `app/` source files) + 2 new test files (2 existing files extended) to the Phase 8 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Recommendation/AutoFix/Monitoring/Reporting engines, or any other real feature Module exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 10
+| File | Purpose |
+|---|---|
+| `app/DTO/FixTier.php` | Safe/Confirmation/Developer enum |
+| `app/DTO/FixResult.php` | generatorId/success/version/message/pending + `toArray()` |
+| `app/DTO/Recommendation.php` | id/title/description/category/priority/autoFixAvailable + `toArray()` |
+| `app/Services/RecommendationService.php` | Turns FAIL/WARNING `ValidationResult`s into `Recommendation`s; `autoFixAvailable` genuinely checked against `GenerationService` |
+| `app/Services/AutoFixService.php` | The Auto Fix Engine: `fix()` reuses `GenerationService`'s existing backup/execute/validate pipeline, adds an explicit post-fix verify step, rolls back on verification failure; tracks `lastResult()` |
+| `app/Http/Controllers/RecommendationController.php` | `GET /recommendations`, `POST /recommendations/generate` |
+| `app/Http/Controllers/AutoFixController.php` | `GET /autofix`, `POST /autofix/run`, `POST /autofix/rollback` |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Services/GenerationService.php` | Adds `resourceIdFor()` — lets `AutoFixService` re-check a resource after publishing without its own separate lookup |
+| `app/Core/CoreServiceProvider.php` | Also binds `RecommendationService`/`AutoFixService` as Container singletons |
+| `routes/api.php` | Adds `GET /recommendations`, `POST /recommendations/generate`, `GET /autofix`, `POST /autofix/run`, `POST /autofix/rollback` |
+
+## Tests (`tests/`) — Phase 10
+| File | Tests |
+|---|---|
+| `tests/Unit/Services/RecommendationServiceTest.php` | 3 |
+| `tests/Unit/Services/AutoFixServiceTest.php` | 10 — the docs/28 AutoFix Safety Tests subset: backup/execute/verify/rollback, rollback after Validation Failure and Filesystem Failure specifically, confirmation-tier gating |
+| `tests/Unit/Http/Controllers/RecommendationControllerTest.php` | 3 |
+| `tests/Unit/Http/Controllers/AutoFixControllerTest.php` | 10 |
+| `tests/Unit/Services/GenerationServiceTest.php` | +1 (`resourceIdFor()`) |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +2 (RecommendationService, AutoFixService singletons) |
+| `tests/Unit/Routes/ApiRoutesTest.php` | extended to cover the 5 new routes |
+
+**249 tests, 424 assertions total repo-wide** (up from 220/368 at the end of Phase 9), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 70 files analysed — up from 63), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 117 files).
+
+**Totals as of end of Phase 10:** adds 3 DTOs + 2 Services + 2 Http Controllers (7 new `app/` source files) + 4 new test files (3 existing files extended) to the Phase 9 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Monitoring/Reporting engines, or any other real feature Module exist yet — still deferred to later phases.

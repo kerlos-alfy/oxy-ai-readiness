@@ -10,14 +10,18 @@ declare(strict_types=1);
 
 use OxyAI\Core\Application;
 use OxyAI\Http\Controllers\AuditController;
+use OxyAI\Http\Controllers\AutoFixController;
 use OxyAI\Http\Controllers\DiscoveryController;
 use OxyAI\Http\Controllers\GenerationController;
+use OxyAI\Http\Controllers\RecommendationController;
 use OxyAI\Http\Controllers\RobotsController;
 use OxyAI\Http\Controllers\ScoreController;
 use OxyAI\Http\Controllers\ValidationController;
 use OxyAI\Services\AuditService;
+use OxyAI\Services\AutoFixService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\RecommendationService;
 use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 
@@ -49,7 +53,12 @@ use OxyAI\Services\ValidationService;
  * restore docs/07-Robots-Spec.md describes — that needs persisted
  * settings/version storage this project hasn't built yet. Audit:
  * `/audit/fix` and `/audit/verify` (docs/06's own REST list) are not
- * implemented — those belong to the AutoFix Engine, a later phase.
+ * implemented — those belong to the AutoFix Engine, built this same
+ * phase but exposed under its own `/autofix/*` namespace. AutoFix:
+ * `/autofix/batch` and `/autofix/history` (docs/18's own REST list)
+ * aren't implemented — batch needs multi-issue orchestration and
+ * history needs persisted storage, neither built yet; verification
+ * happens automatically inside `run`, not as a separate `/verify` step.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -204,6 +213,66 @@ return static function (Application $app): void {
                 'required' => false,
                 'type' => 'string',
                 'default' => 'quick',
+            ],
+        ],
+    ]);
+
+    $recommendationController = new RecommendationController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(RecommendationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/recommendations', [
+        'methods' => 'GET',
+        'callback' => [$recommendationController, 'index'],
+        'permission_callback' => [$recommendationController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/recommendations/generate', [
+        'methods' => 'POST',
+        'callback' => [$recommendationController, 'generate'],
+        'permission_callback' => [$recommendationController, 'authorize'],
+    ]);
+
+    $autoFixController = new AutoFixController($app->make(AutoFixService::class));
+
+    register_rest_route('oxy-ai/v1', '/autofix', [
+        'methods' => 'GET',
+        'callback' => [$autoFixController, 'index'],
+        'permission_callback' => [$autoFixController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/autofix/run', [
+        'methods' => 'POST',
+        'callback' => [$autoFixController, 'run'],
+        'permission_callback' => [$autoFixController, 'authorize'],
+        'args' => [
+            'generator_id' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+            'tier' => [
+                'required' => false,
+                'type' => 'string',
+                'default' => 'safe',
+            ],
+            'confirmed' => [
+                'required' => false,
+                'type' => 'boolean',
+                'default' => false,
+            ],
+        ],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/autofix/rollback', [
+        'methods' => 'POST',
+        'callback' => [$autoFixController, 'rollback'],
+        'permission_callback' => [$autoFixController, 'authorize'],
+        'args' => [
+            'generator_id' => [
+                'required' => true,
+                'type' => 'string',
             ],
         ],
     ]);

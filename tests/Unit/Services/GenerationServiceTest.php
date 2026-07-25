@@ -70,6 +70,14 @@ final class GenerationServiceTest extends TestCase
         return $generator;
     }
 
+    public function test_resource_id_for_returns_the_generators_own_resource_id(): void
+    {
+        $service = $this->makeService($this->makeResource(), ValidationStatus::Pass);
+        $service->registerGenerator('probe', $this->makeGenerator('hello'));
+
+        self::assertSame('probe-fixture', $service->resourceIdFor('probe'));
+    }
+
     public function test_publish_writes_output_and_returns_a_result_when_validation_passes(): void
     {
         Actions\expectDone('oxy_ai_generation_published')->once();
