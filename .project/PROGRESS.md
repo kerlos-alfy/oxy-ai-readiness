@@ -350,3 +350,32 @@ One narrow PHPCS false-positive fixed with an inline suppression, not a ruleset-
 - Logging (no Logger service exists yet), third-party custom fix registration
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
 - Monitoring/Reporting engines, any other real feature Module, any admin UI, `package.json`/frontend tooling
+
+## Phase 11 — Remaining Discovery-pillar modules (LLMS, Headers, Markdown, Content Signals) — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-11`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 11: "LLMS, Headers, Markdown, Content Signals — each repeats the Phase 8 pattern now that the pipeline is proven," exit criterion "Each module has REST + generator + validator + audit rules + snapshot tests, mirroring Robots."
+
+### What was built — four modules, each mirroring `Modules/Robots` exactly
+
+- **LLMS** (`llms.txt`): title + description blockquote, using the plugin's own real product identity (docs/01-Vision.md's Plugin Name/Tagline) rather than fabricated page content. Owns the `llms-txt` Standard per ADR-001.
+- **Headers** (HTTP response headers): a real `Name: value` declaration (`Content-Signal`, `X-Content-Type-Options`, `Referrer-Policy`) represented the same way Robots represents robots.txt — a generated text resource, not a live `send_headers` hook (keeps the pattern uniform; real emission deferred). **Owns no Standard** — ADR-001 explicitly lists Headers among the modules with none ("No Standard: Dashboard, Audit, Headers, Settings, Logs, ..."), caught and corrected before writing the ServiceProvider (an initial `HeadersStandard.php` was written, then removed once this was checked against the canonical ownership table).
+- **Markdown** (content negotiation): a real capability declaration (Content-Type/Accept types docs/09 itself lists) rather than fabricated per-page HTML→Markdown conversion, since this project has no real WordPress content to convert yet ("do not use mock production data"). Owns the `markdown-negotiation` Standard.
+- **Content Signals**: a real site-wide AI-usage-signals declaration (`ai-training`/`ai-citation`/`ai-summary`), matching the real, existing Content Signals policy concept the doc models, rather than fabricated per-page Identity/Purpose/Audience/Trust signals requiring content and entity extraction this project doesn't have. Owns the `content-signals` Standard.
+
+Each module got the full Robots-shaped test suite: a snapshot test freezing exact generated output, a Module test (identity/lifecycle/discover/validate/resourceId/supports), a Standard test (delegation + still-throwing methods, skipped for Headers), a ServiceProvider test, and a Controller test (7 REST scenarios). `tests/Unit/Routes/ApiRoutesTest.php` was rewritten to generate its expected-route list from a module-slug loop rather than hand-listing 20 more strings.
+
+### Checks — all run for real, clean on the first pass
+
+`composer validate` (valid), `composer test` → `OK (329 tests, 612 assertions)` (up from 249/424), PHPStan level 8 → `[OK] No errors` across 85 files (up from 70), PHPCS hybrid ruleset → 0 errors/0 warnings across 151 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+### Explicitly out of scope for Phase 11 (deferred)
+- Every module's full aspirational feature set (visual builders, multi-language, live HTTP testing, entity extraction, version history with restore, third-party plugin conflict detection) — needs Settings/DB persistence and the Admin UI phase this project hasn't reached
+- Real per-page Markdown conversion and per-page Content Signals — need actual WordPress content, which doesn't exist in this environment
+- Real HTTP header emission (`send_headers` hook) — Headers module generates a text declaration like every other module, not yet wired to an actual outgoing response
+- Custom capability registration (`manage_llms`, `manage_headers`, etc.) — all four reuse the same `manage_options` interim default
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- MCP/Agent Skills/API Catalog/OAuth Discovery modules (Phase 14), Monitoring/Reporting engines (Phase 13), any admin UI (Phase 12), `package.json`/frontend tooling

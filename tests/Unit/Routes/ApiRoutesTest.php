@@ -51,16 +51,27 @@ final class ApiRoutesTest extends TestCase
             );
         });
 
-        $expectedGetRoutes = [
+        $moduleSlugs = ['robots', 'llms', 'headers', 'markdown', 'content-signals'];
+        $moduleGetRoutes = [];
+        $modulePostRoutes = [];
+
+        foreach ($moduleSlugs as $slug) {
+            $moduleGetRoutes[] = "/{$slug}";
+            $moduleGetRoutes[] = "/{$slug}/preview";
+            $modulePostRoutes[] = "/{$slug}/save";
+            $modulePostRoutes[] = "/{$slug}/validate";
+            $modulePostRoutes[] = "/{$slug}/reset";
+        }
+
+        $expectedGetRoutes = array_merge([
             '/discovery', '/discovery/map', '/discovery/resources',
             '/validation', '/generation', '/generation/preview', '/score',
-            '/robots', '/robots/preview', '/audit', '/recommendations', '/autofix',
-        ];
-        $expectedPostRoutes = [
+            '/audit', '/recommendations', '/autofix',
+        ], $moduleGetRoutes);
+        $expectedPostRoutes = array_merge([
             '/validation/run', '/generation/publish', '/generation/rollback',
-            '/robots/save', '/robots/validate', '/robots/reset', '/audit/start',
-            '/recommendations/generate', '/autofix/run', '/autofix/rollback',
-        ];
+            '/audit/start', '/recommendations/generate', '/autofix/run', '/autofix/rollback',
+        ], $modulePostRoutes);
 
         Functions\expect('register_rest_route')
             ->times(count($expectedGetRoutes) + count($expectedPostRoutes))

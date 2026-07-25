@@ -11,8 +11,12 @@ declare(strict_types=1);
 use OxyAI\Core\Application;
 use OxyAI\Http\Controllers\AuditController;
 use OxyAI\Http\Controllers\AutoFixController;
+use OxyAI\Http\Controllers\ContentSignalsController;
 use OxyAI\Http\Controllers\DiscoveryController;
 use OxyAI\Http\Controllers\GenerationController;
+use OxyAI\Http\Controllers\HeadersController;
+use OxyAI\Http\Controllers\LlmsController;
+use OxyAI\Http\Controllers\MarkdownController;
 use OxyAI\Http\Controllers\RecommendationController;
 use OxyAI\Http\Controllers\RobotsController;
 use OxyAI\Http\Controllers\ScoreController;
@@ -59,6 +63,9 @@ use OxyAI\Services\ValidationService;
  * aren't implemented — batch needs multi-issue orchestration and
  * history needs persisted storage, neither built yet; verification
  * happens automatically inside `run`, not as a separate `/verify` step.
+ * LLMS/Headers/Markdown/Content Signals (Phase 11) each mirror the
+ * Robots pattern exactly — thin facades over the shared engines, one
+ * GET/preview/save/validate/reset set per module.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -194,6 +201,150 @@ return static function (Application $app): void {
         'methods' => 'POST',
         'callback' => [$robotsController, 'reset'],
         'permission_callback' => [$robotsController, 'authorize'],
+    ]);
+
+    $llmsController = new LlmsController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/llms', [
+        'methods' => 'GET',
+        'callback' => [$llmsController, 'index'],
+        'permission_callback' => [$llmsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/llms/preview', [
+        'methods' => 'GET',
+        'callback' => [$llmsController, 'preview'],
+        'permission_callback' => [$llmsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/llms/save', [
+        'methods' => 'POST',
+        'callback' => [$llmsController, 'save'],
+        'permission_callback' => [$llmsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/llms/validate', [
+        'methods' => 'POST',
+        'callback' => [$llmsController, 'validate'],
+        'permission_callback' => [$llmsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/llms/reset', [
+        'methods' => 'POST',
+        'callback' => [$llmsController, 'reset'],
+        'permission_callback' => [$llmsController, 'authorize'],
+    ]);
+
+    $headersController = new HeadersController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/headers', [
+        'methods' => 'GET',
+        'callback' => [$headersController, 'index'],
+        'permission_callback' => [$headersController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/headers/preview', [
+        'methods' => 'GET',
+        'callback' => [$headersController, 'preview'],
+        'permission_callback' => [$headersController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/headers/save', [
+        'methods' => 'POST',
+        'callback' => [$headersController, 'save'],
+        'permission_callback' => [$headersController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/headers/validate', [
+        'methods' => 'POST',
+        'callback' => [$headersController, 'validate'],
+        'permission_callback' => [$headersController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/headers/reset', [
+        'methods' => 'POST',
+        'callback' => [$headersController, 'reset'],
+        'permission_callback' => [$headersController, 'authorize'],
+    ]);
+
+    $markdownController = new MarkdownController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/markdown', [
+        'methods' => 'GET',
+        'callback' => [$markdownController, 'index'],
+        'permission_callback' => [$markdownController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/markdown/preview', [
+        'methods' => 'GET',
+        'callback' => [$markdownController, 'preview'],
+        'permission_callback' => [$markdownController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/markdown/save', [
+        'methods' => 'POST',
+        'callback' => [$markdownController, 'save'],
+        'permission_callback' => [$markdownController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/markdown/validate', [
+        'methods' => 'POST',
+        'callback' => [$markdownController, 'validate'],
+        'permission_callback' => [$markdownController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/markdown/reset', [
+        'methods' => 'POST',
+        'callback' => [$markdownController, 'reset'],
+        'permission_callback' => [$markdownController, 'authorize'],
+    ]);
+
+    $contentSignalsController = new ContentSignalsController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/content-signals', [
+        'methods' => 'GET',
+        'callback' => [$contentSignalsController, 'index'],
+        'permission_callback' => [$contentSignalsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/content-signals/preview', [
+        'methods' => 'GET',
+        'callback' => [$contentSignalsController, 'preview'],
+        'permission_callback' => [$contentSignalsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/content-signals/save', [
+        'methods' => 'POST',
+        'callback' => [$contentSignalsController, 'save'],
+        'permission_callback' => [$contentSignalsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/content-signals/validate', [
+        'methods' => 'POST',
+        'callback' => [$contentSignalsController, 'validate'],
+        'permission_callback' => [$contentSignalsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/content-signals/reset', [
+        'methods' => 'POST',
+        'callback' => [$contentSignalsController, 'reset'],
+        'permission_callback' => [$contentSignalsController, 'authorize'],
     ]);
 
     $auditController = new AuditController($app->make(AuditService::class));

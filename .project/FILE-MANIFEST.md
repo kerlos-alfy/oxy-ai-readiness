@@ -411,3 +411,26 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **249 tests, 424 assertions total repo-wide** (up from 220/368 at the end of Phase 9), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 70 files analysed — up from 63), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 117 files).
 
 **Totals as of end of Phase 10:** adds 3 DTOs + 2 Services + 2 Http Controllers (7 new `app/` source files) + 4 new test files (3 existing files extended) to the Phase 9 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Monitoring/Reporting engines, or any other real feature Module exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 11
+Four modules, each repeating the exact `Modules/Robots` (Phase 8) shape: `{X}Module` (Module+Discovery+Validator+Generator), `{X}Standard` (where ADR-001 gives the module a Standard), `{X}ServiceProvider`, `{X}Controller`.
+
+| Module | Files | Owns a Standard? | Default content |
+|---|---|---|---|
+| LLMS | `app/Modules/Llms/{LlmsModule,LlmsStandard,LlmsServiceProvider}.php`, `app/Http/Controllers/LlmsController.php` | Yes — `llms-txt` | Title + description blockquote (docs/01-Vision.md's own Plugin Name/Tagline) |
+| Headers | `app/Modules/Headers/{HeadersModule,HeadersServiceProvider}.php`, `app/Http/Controllers/HeadersController.php` | **No** — ADR-001 explicitly lists Headers as owning no Standard | `Content-Signal`/`X-Content-Type-Options`/`Referrer-Policy` declaration, one `Name: value` per line |
+| Markdown | `app/Modules/Markdown/{MarkdownModule,MarkdownStandard,MarkdownServiceProvider}.php`, `app/Http/Controllers/MarkdownController.php` | Yes — `markdown-negotiation` | Negotiation capability declaration (Content-Type/Accept types, not per-page converted content) |
+| Content Signals | `app/Modules/ContentSignals/{ContentSignalsModule,ContentSignalsStandard,ContentSignalsServiceProvider}.php`, `app/Http/Controllers/ContentSignalsController.php` | Yes — `content-signals` | Site-wide AI usage signals (`ai-training`/`ai-citation`/`ai-summary`) |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/Plugin.php` | Adds all 4 new `ServiceProvider`s to the provider list |
+| `routes/api.php` | Adds `/llms/*`, `/headers/*`, `/markdown/*`, `/content-signals/*` (5 routes each, mirroring `/robots/*`) |
+
+## Tests (`tests/`) — Phase 11
+Each module has the same test shape as Robots: `{X}ModuleSnapshotTest` (1 — frozen exact output), `{X}ModuleTest` (6), `{X}StandardTest` (3 methods/5 cases, skipped for Headers), `{X}ServiceProviderTest` (2, or 3 for Headers which also asserts no Standard is registered), `{X}ControllerTest` (7). `tests/Unit/Routes/ApiRoutesTest.php` rewritten to generate its expected-routes list from a module-slug loop rather than hand-listing 20 more routes.
+
+**329 tests, 612 assertions total repo-wide** (up from 249/424 at the end of Phase 10), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 85 files analysed — up from 70), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 151 files) — all clean on the first run.
+
+**Totals as of end of Phase 11:** adds 4 Modules (14 Module/Standard/ServiceProvider files) + 4 Http Controllers (18 new `app/` source files) + 19 new test files (1 existing file rewritten) to the Phase 10 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Monitoring/Reporting engines, MCP/Agent Skills/API Catalog/OAuth modules, or an admin UI exist yet — still deferred to later phases.

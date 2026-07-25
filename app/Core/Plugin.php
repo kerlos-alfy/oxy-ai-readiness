@@ -10,6 +10,10 @@ declare(strict_types=1);
 
 namespace OxyAI\Core;
 
+use OxyAI\Modules\ContentSignals\ContentSignalsServiceProvider;
+use OxyAI\Modules\Headers\HeadersServiceProvider;
+use OxyAI\Modules\Llms\LlmsServiceProvider;
+use OxyAI\Modules\Markdown\MarkdownServiceProvider;
 use OxyAI\Modules\Probe\ProbeServiceProvider;
 use OxyAI\Modules\Robots\RobotsServiceProvider;
 use OxyAI\Repositories\OptionsRepository;
@@ -43,6 +47,10 @@ final class Plugin
             new RestServiceProvider($this->app),
             new ProbeServiceProvider($this->app),
             new RobotsServiceProvider($this->app),
+            new LlmsServiceProvider($this->app),
+            new HeadersServiceProvider($this->app),
+            new MarkdownServiceProvider($this->app),
+            new ContentSignalsServiceProvider($this->app),
         ];
 
         $bootstrap = new Bootstrap($this->app, $providers);
