@@ -4,8 +4,6 @@ parameters:
         - app
         - oxy-ai-readiness.php
         - uninstall.php
-    excludePaths:
-        - app/Modules/*
     treatPhpDocTypesAsCertain: false
     checkMissingIterableValueType: true
     checkGenericClassInNonGenericObjectType: true

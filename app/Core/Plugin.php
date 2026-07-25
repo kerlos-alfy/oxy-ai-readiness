@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 namespace OxyAI\Core;
 
+use OxyAI\Modules\Probe\ProbeServiceProvider;
 use OxyAI\Repositories\OptionsRepository;
 
 /**
@@ -33,13 +34,30 @@ final class Plugin
 
         $this->app = new Application($container);
 
-        $bootstrap = new Bootstrap($this->app);
+        $providers = [
+            new CoreServiceProvider($this->app),
+            new ProbeServiceProvider($this->app),
+        ];
+
+        $bootstrap = new Bootstrap($this->app, $providers);
         $this->kernel = new Kernel($bootstrap, new Hooks());
     }
 
+    /**
+     * Registers the Kernel on `plugins_loaded`. WordPress then calls
+     * boot() itself when that hook fires — Brain Monkey's simulated
+     * add_action()/do_action() do not actually invoke registered
+     * callbacks, so tests call boot() directly to exercise the same
+     * path a real WordPress request would.
+     */
     public function run(): void
     {
         $this->kernel->register();
+    }
+
+    public function boot(): void
+    {
+        $this->kernel->boot();
     }
 
     /**

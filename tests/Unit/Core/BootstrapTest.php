@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace OxyAI\Tests\Unit\Core;
 
+use ArrayObject;
 use Brain\Monkey\Actions;
 use OxyAI\Core\Application;
 use OxyAI\Core\Bootstrap;
 use OxyAI\Core\Container;
+use OxyAI\Providers\ServiceProvider;
 use OxyAI\Tests\Unit\TestCase;
 
 final class BootstrapTest extends TestCase
@@ -35,5 +37,53 @@ final class BootstrapTest extends TestCase
         $bootstrap->run();
 
         self::assertTrue($app->isBooted());
+    }
+
+    public function test_run_registers_every_provider_before_booting_any_of_them(): void
+    {
+        $app = new Application(new Container());
+        $calls = new ArrayObject();
+
+        $first = new class ($app, $calls) extends ServiceProvider {
+            public function __construct(Application $app, private readonly ArrayObject $calls)
+            {
+                parent::__construct($app);
+            }
+
+            public function register(): void
+            {
+                $this->calls[] = 'first.register';
+            }
+
+            public function boot(): void
+            {
+                $this->calls[] = 'first.boot';
+            }
+        };
+
+        $second = new class ($app, $calls) extends ServiceProvider {
+            public function __construct(Application $app, private readonly ArrayObject $calls)
+            {
+                parent::__construct($app);
+            }
+
+            public function register(): void
+            {
+                $this->calls[] = 'second.register';
+            }
+
+            public function boot(): void
+            {
+                $this->calls[] = 'second.boot';
+            }
+        };
+
+        $bootstrap = new Bootstrap($app, [$first, $second]);
+        $bootstrap->run();
+
+        self::assertSame(
+            ['first.register', 'second.register', 'first.boot', 'second.boot'],
+            $calls->getArrayCopy()
+        );
     }
 }

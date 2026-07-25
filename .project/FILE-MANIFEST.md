@@ -150,3 +150,41 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **24 new test methods this phase — 78 tests, 89 assertions total repo-wide**, confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, now also scoped to the two root plugin files), and PHPCS (hybrid ruleset, 0 errors/0 warnings across all 33 files, including one narrowly file-scoped `PSR1.Files.SideEffects` exclusion for `oxy-ai-readiness.php` — see `DECISIONS.md`).
 
 **Totals as of end of Phase 2:** adds 3 root plugin files + 8 `app/` source files + 8 test files to the Phase 1 count. No `Core/Scheduler.php`, `Core/ModuleRegistry.php`, `Core/StandardsRegistry.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Modules, or REST routes exist yet — deferred to later phases.
+
+## Production source (`app/`) — Phase 3
+| File | Purpose |
+|---|---|
+| `app/Contracts/ModuleInterface.php` | Full documented Module contract (identity + register/boot/init/shutdown + assets/routes/settings/permissions/audit) |
+| `app/Contracts/StandardInterface.php` | Full documented Standard contract; discover/generate/validate/score/monitor/report delegate to the owning Module's engines |
+| `app/Exceptions/ModuleException.php` | Registry bookkeeping errors + "no engine registered yet" delegate-method errors |
+| `app/Events/ModuleRegistered.php`, `ModuleBooted.php`, `ModuleEnabled.php`, `ModuleDisabled.php` | Module lifecycle event DTOs, fired via `do_action` |
+| `app/Events/StandardRegistered.php`, `StandardEnabled.php`, `StandardDisabled.php` | Standard lifecycle event DTOs, fired via `do_action` |
+| `app/Core/ModuleRegistry.php` | register/boot/enable/disable/remove/get/has/all, in-memory, fires lifecycle events |
+| `app/Core/StandardsRegistry.php` | register/enable/disable/get/has/all, in-memory, fires lifecycle events |
+| `app/Core/CoreServiceProvider.php` | Binds `ModuleRegistry`/`StandardsRegistry` as Container singletons — first real `ServiceProvider` consumer |
+| `app/Modules/Probe/ProbeModule.php` | Internal, not-user-facing probe module proving the Module lifecycle end-to-end |
+| `app/Modules/Probe/ProbeStandard.php` | Internal probe standard; delegate methods throw `ModuleException` (no owning engine exists yet) |
+| `app/Modules/Probe/ProbeServiceProvider.php` | Registers/boots the probe module+standard into their registries |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/Bootstrap.php` | Now takes a `ServiceProvider[]` list; `run()` calls every `register()` then every `boot()` before marking the app booted |
+| `app/Core/Plugin.php` | Constructs `CoreServiceProvider`+`ProbeServiceProvider`, passes them to `Bootstrap`; added a `boot()` passthrough to `Kernel::boot()` for direct invocation (Brain Monkey's simulated `do_action` does not itself invoke registered callbacks) |
+| `phpstan.neon` | Removed the `excludePaths: [app/Modules/*]` inherited from Phase 1 — it was silently skipping analysis of the new `app/Modules/Probe/*` files |
+
+## Tests (`tests/`) — Phase 3
+| File | Tests |
+|---|---|
+| `tests/Unit/Core/ModuleRegistryTest.php` | 10 |
+| `tests/Unit/Core/StandardsRegistryTest.php` | 5 |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | 1 |
+| `tests/Unit/Modules/Probe/ProbeModuleTest.php` | 3 |
+| `tests/Unit/Modules/Probe/ProbeStandardTest.php` | 3 methods, 8 executed cases (one uses a 6-case data provider over the six delegate methods) |
+| `tests/Unit/Modules/Probe/ProbeServiceProviderTest.php` | 2 |
+| `tests/Unit/Core/BootstrapTest.php` | +1 (provider register-before-boot ordering) |
+| `tests/Unit/Core/PluginTest.php` | +1 (end-to-end: `run()`+`boot()` really registers and boots the probe module through the real Container/Registry chain) |
+
+**109 tests, 142 assertions total repo-wide** (up from 78/89 at the end of Phase 2), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, now genuinely covering `app/Modules/*` too), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 55 files).
+
+**Totals as of end of Phase 3:** adds 2 Contracts + 1 Exception + 7 Event DTOs + 2 Core registries + 1 Core ServiceProvider + 3 Probe module files (16 new `app/` source files) + 8 test files (2 existing files extended) to the Phase 2 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module (Robots/LLMS/etc.), or REST routes exist yet — still deferred to later phases.

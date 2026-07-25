@@ -87,3 +87,37 @@ One PHPCS finding required a narrowly-scoped ruleset exclusion, same pattern as 
 - Any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
 - Any Module, any Standard, any REST route, any admin UI
 - `package.json` / frontend tooling
+
+## Phase 3 — Module & Standard SDK skeleton — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Approved by the user 2026-07-25.**
+
+### Scope resolution before starting
+
+The user said "start Phase 3 exactly according to the roadmap." Read literally against `06-Phase-Plan.md`'s own numbering, its row 3 is "Module & Standard SDK skeleton" (`ModuleInterface`, `StandardInterface`, Module Registry, Standards Registry, `ServiceProvider` pattern, module lifecycle wiring, one minimal internal "probe" module/standard for validation only, not user-facing), listed as depending on the draft's own Phase 2 ("Database & shared infrastructure") — which still doesn't exist, since our actual Phase 2 was the deferred scaffolding (the draft's Phase 1), not the draft's Phase 2. Proceeded anyway because the roadmap row's own exit criterion ("A module can be enabled/disabled at runtime without touching core; events fire on lifecycle transitions") does not require persistence — in-memory registry state is sufficient for a skeleton, consistent with the row's own framing of a minimal, internal, not-user-facing probe. Documented as a decision rather than asked again, since the user's phrasing ("exactly according to the roadmap") read as a direct scope instruction, not an open question.
+
+### What was built
+
+- `app/Contracts/ModuleInterface.php` / `StandardInterface.php` — the full documented contracts (docs/05-Modules.md, docs/22-Plugin-SDK.md, docs/23-AI-Standards-Layer.md), not narrowed.
+- `app/Exceptions/ModuleException.php` — registry bookkeeping errors and "nothing to delegate to yet" errors.
+- `app/Events/` — 7 lifecycle event DTOs (`ModuleRegistered`/`Booted`/`Enabled`/`Disabled`, `StandardRegistered`/`Enabled`/`Disabled`), fired via `do_action` (reusing Phase 2's `Bootstrap`-proven pattern, not a new event/listener system).
+- `app/Core/ModuleRegistry.php` / `StandardsRegistry.php` — register/enable/disable/get/has/all (+ `boot`/`remove` for Modules specifically), in-memory only, firing the events above.
+- `app/Core/CoreServiceProvider.php` — the first real consumer of Phase 2's `ServiceProvider` base class; binds both registries as Container singletons.
+- `app/Modules/Probe/` — `ProbeModule`, `ProbeStandard`, `ProbeServiceProvider`: the one internal, not-user-facing probe named in the roadmap row. `ProbeModule`'s `assets()`/`routes()`/`settings()`/`permissions()`/`audit()` honestly return empty arrays (it has none of these yet, and none of the subsystems they'd register into exist). `ProbeStandard`'s `discover()`/`generate()`/`validate()`/`score()`/`monitor()`/`report()` throw `ModuleException` — the owning module has no Discovery provider/Generator/Validator/ScoreProvider/Monitor/Reporter registered, since those engines are later phases; throwing reports that honestly instead of fabricating a result.
+- `app/Core/Bootstrap.php` (modified) — now takes an ordered `ServiceProvider[]` list; `run()` calls every `register()`, then every `boot()`, before marking the app booted — this is where "Register Services"/"Load Core Components"/"Load Enabled Modules" (previously "nothing to do yet" in Phase 2) get filled in for real.
+- `app/Core/Plugin.php` (modified) — constructs `[CoreServiceProvider, ProbeServiceProvider]` and passes them to `Bootstrap`; added `Plugin::boot()` (a thin passthrough to `Kernel::boot()`) since Brain Monkey's simulated `add_action`/`do_action` track hook registration but do not themselves invoke registered callbacks — tests need a direct way to exercise the same path WordPress would.
+- 8 new/extended test files, testing the registries, the ServiceProvider wiring, the probe module/standard, and — in `PluginTest`/`BootstrapTest` — the full chain end-to-end through the real `Container`/`Application`/`Bootstrap`/`Kernel`.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (109 tests, 142 assertions)` (up from 78/89), PHPStan level 8 → `[OK] No errors`, PHPCS hybrid ruleset → 0 errors/0 warnings across 55 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+**One real gap caught and fixed, not just a style nit:** `phpstan.neon` still had `excludePaths: [app/Modules/*]` inherited from Phase 1 (added before any Module existed, presumably as a forward-looking placeholder). With `app/Modules/Probe/*` now real code, that exclusion meant PHPStan's "no errors" was silently skipping those three files entirely — a false-clean result, not a true one. Removed the exclusion and re-ran; genuinely 0 errors across all 32 analysed files (up from 29).
+
+### Explicitly out of scope for Phase 3 (deferred)
+- `Core/Scheduler.php` (Queue/Scheduler infra — later phase)
+- Any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Any real, user-facing Module (Robots/LLMS/Headers/Markdown/etc. — Phase 8 per the draft plan) — only the internal, not-user-facing probe exists
+- Discovery/Validation/Generation/Scoring/Monitoring/Reporting engines and their DTOs (Phases 4–7, 9, 13 per the draft plan) — this is why `ProbeStandard`'s six delegate methods throw rather than return real data
+- Any REST route, any admin UI
+- `package.json` / frontend tooling

@@ -7,6 +7,7 @@ namespace OxyAI\Tests\Unit\Core;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Functions;
 use OxyAI\Core\Config;
+use OxyAI\Core\ModuleRegistry;
 use OxyAI\Core\Plugin;
 use OxyAI\Tests\Unit\TestCase;
 
@@ -30,6 +31,19 @@ final class PluginTest extends TestCase
         $plugin->run();
 
         self::assertTrue(Actions\has('plugins_loaded'));
+    }
+
+    public function test_run_then_boot_registers_and_boots_the_probe_module_end_to_end(): void
+    {
+        $plugin = new Plugin('/plugin.php', '0.1.0');
+
+        $plugin->run();
+        $plugin->boot();
+
+        $registry = $plugin->application()->make(ModuleRegistry::class);
+
+        self::assertTrue($registry->has('probe'));
+        self::assertTrue($registry->isBooted('probe'));
     }
 
     public function test_activate_records_installed_at_only_when_not_already_set_and_always_updates_version(): void
