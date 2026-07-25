@@ -257,3 +257,39 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **135 tests, 190 assertions total repo-wide** (up from 123/165 at the end of Phase 4), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 43 files analysed — up from 38), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 72 files).
 
 **Totals as of end of Phase 5:** adds 2 DTOs + 1 Contract + 1 Service + 1 Http Controller (5 new `app/` source files) + 2 new test files (5 existing files extended) to the Phase 4 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, or Generation/Scoring/Monitoring/Reporting engine exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 6
+| File | Purpose |
+|---|---|
+| `app/DTO/GenerationResult.php` | Publish outcome: generatorId/path/version/checksum/publishedAt + `toArray()` |
+| `app/Contracts/GeneratorInterface.php` | Minimal per-generator contract: id/resourceId/supports/generate (engine owns publish/rollback/cache/version — see Decisions) |
+| `app/Exceptions/GenerationException.php` | Publish-with-failed-validation, publish-of-undiscovered-resource, write failure, rollback-with-nothing-to-restore |
+| `app/Services/GenerationService.php` | The Generation Engine: registerGenerator/generate/preview/cache/publish/rollback/version/currentContent, two-slot (current + previous) versioning via `FileRepository`, fires `oxy_ai_generation_*` events |
+| `app/Http/Controllers/GenerationController.php` | `index`/`preview`/`publish`/`rollback` — validates `generator_id`, translates `GenerationException` into 409 |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/CoreServiceProvider.php` | Also binds `GenerationService` (constructs a `FileRepository` scoped to `storage/generated/` under the plugin's own root, via `Config`) |
+| `app/Core/Plugin.php` | `activate()` now also calls `wp_mkdir_p()` to ensure `storage/generated/` exists — `FileRepository` never creates its own base directory, only subdirectories beneath it |
+| `app/Modules/Probe/ProbeModule.php` | Now also implements `GeneratorInterface` — fixed, deterministic content tied to its own discovered resource |
+| `app/Modules/Probe/ProbeServiceProvider.php` | Registers the probe module as a generator too |
+| `app/Modules/Probe/ProbeStandard.php` | `generate()` now delegates to the owning module for real; only `score()`/`monitor()`/`report()` still throw |
+| `routes/api.php` | Adds `GET /generation`, `GET /generation/preview`, `POST /generation/publish`, `POST /generation/rollback` |
+
+## Tests (`tests/`) — Phase 6
+| File | Tests |
+|---|---|
+| `tests/Unit/Support/InMemoryFilesystem.php` | Test double (not a test file) — in-memory `WP_Filesystem_Base` for exercising `FileRepository` read/write/move sequences without Mockery call-by-call brittleness |
+| `tests/Unit/Services/GenerationServiceTest.php` | 7 |
+| `tests/Unit/Http/Controllers/GenerationControllerTest.php` | 8 |
+| `tests/Unit/Modules/Probe/ProbeModuleTest.php` | +3 (resourceId/supports/generate) |
+| `tests/Unit/Modules/Probe/ProbeStandardTest.php` | `generate()` moved out of the still-throwing data provider into its own delegation assertion |
+| `tests/Unit/Modules/Probe/ProbeServiceProviderTest.php` | extended to assert generator registration |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +1 (GenerationService singleton, using a bound `Config` for its storage path) |
+| `tests/Unit/Core/PluginTest.php` | activate() tests updated for the new `wp_mkdir_p()` call |
+| `tests/Unit/Routes/ApiRoutesTest.php` | rewritten to cover all 9 routes (6 GET + 3 POST) |
+
+**154 tests, 228 assertions total repo-wide** (up from 135/190 at the end of Phase 5), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 48 files analysed — up from 43), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 80 files).
+
+**Totals as of end of Phase 6:** adds 1 DTO + 1 Contract + 1 Exception + 1 Service + 1 Http Controller (5 new `app/` source files) + 1 test-support file + 2 new test files (5 existing files extended) to the Phase 5 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, or Scoring/Monitoring/Reporting engine exist yet — still deferred to later phases.

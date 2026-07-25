@@ -67,8 +67,13 @@ final class Plugin
     /**
      * Uses OptionsRepository (Phase 1) for exactly the narrow use case
      * its own docblock describes: install timestamp and installed
-     * version. No `oxy_*` tables, migrations, or module state exist
-     * yet, so there is nothing else for activation to do this phase.
+     * version. No `oxy_*` tables or migrations exist yet.
+     *
+     * Also ensures `storage/generated/` exists: `FileRepository`
+     * (Phase 1) only ever creates directories *below* its configured
+     * base directory, never the base directory itself, so without this
+     * every `GenerationService::publish()` call (Phase 6) would fail on
+     * a fresh install where that folder has never been created.
      */
     public function activate(): void
     {
@@ -79,6 +84,8 @@ final class Plugin
         }
 
         $options->set('version', $this->config->version());
+
+        wp_mkdir_p($this->config->pluginDir() . 'storage/generated');
     }
 
     /**

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace OxyAI\Tests\Unit\Core;
 
 use OxyAI\Core\Application;
+use OxyAI\Core\Config;
 use OxyAI\Core\Container;
 use OxyAI\Core\CoreServiceProvider;
 use OxyAI\Core\ModuleRegistry;
 use OxyAI\Core\StandardsRegistry;
 use OxyAI\Services\DiscoveryService;
+use OxyAI\Services\GenerationService;
 use OxyAI\Services\ValidationService;
 use OxyAI\Tests\Unit\TestCase;
 
@@ -49,5 +51,17 @@ final class CoreServiceProviderTest extends TestCase
 
         self::assertInstanceOf(ValidationService::class, $app->make(ValidationService::class));
         self::assertSame($app->make(ValidationService::class), $app->make(ValidationService::class));
+    }
+
+    public function test_register_binds_generation_service_as_a_singleton_using_config_for_its_storage_path(): void
+    {
+        $app = new Application(new Container());
+        $app->singleton(Config::class, static fn (): Config => new Config('0.1.0', '/plugin.php'));
+
+        $provider = new CoreServiceProvider($app);
+        $provider->register();
+
+        self::assertInstanceOf(GenerationService::class, $app->make(GenerationService::class));
+        self::assertSame($app->make(GenerationService::class), $app->make(GenerationService::class));
     }
 }

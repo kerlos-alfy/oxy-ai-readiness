@@ -190,3 +190,39 @@ One real PHPStan finding fixed properly (not suppressed): `DiscoveryService::map
 - `docs/16-Validation-Engine.md`'s `oxy_ai_validation_before`/`after`/`rules`/`result` filters — not implemented; no consumer exists yet to justify the extensibility surface
 - Custom capability registration — `/validation/*` reuses the same `manage_options` interim default as `/discovery/*`
 - `package.json` / frontend tooling
+
+## Phase 6 — Generation Engine — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-6`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 6: "Centralized generator framework, `GeneratorInterface`, publish/rollback/cache/version pipeline, `/generation/*` REST," exit criterion "A generated resource round-trips through Validation before publish; rollback restores prior version."
+
+### A deliberate interface-scope deviation, documented
+
+`docs/17-Generation-Engine.md` literally lists `publish()`/`rollback()`/`cache()`/`version()` as methods every Generator itself implements — but the same document's own Vision states "Instead of allowing every module to implement its own generation logic, the Generation Engine provides one centralized framework." Implementing those four methods per-Generator would force every future generator (Robots, LLMS, etc.) to reimplement identical file-versioning logic, directly contradicting the stated vision. `GeneratorInterface` was kept to `id()`/`resourceId()`/`supports()`/`generate()`; `GenerationService` owns publish/rollback/cache/version as the actual centralized pipeline. Logged in `DECISIONS.md`.
+
+### What was built
+
+- `app/DTO/GenerationResult.php`, `app/Contracts/GeneratorInterface.php`, `app/Exceptions/GenerationException.php`.
+- `app/Services/GenerationService.php` — the engine. `publish()` implements the exit criterion directly: resolves the generator's associated Discovery Map entry, runs it through `ValidationService`, refuses to write anything if any result is FAIL, then backs up existing content to a `.previous` sibling file (via `FileRepository`, Phase 1) before writing the new content. `rollback()` restores from that backup. Versioning is a simple two-slot scheme (current + one previous), not full history — sufficient for "restores prior version" (singular).
+- `app/Http/Controllers/GenerationController.php` + `routes/api.php` additions — `GET /generation`, `GET /generation/preview`, `POST /generation/publish`, `POST /generation/rollback`. The last of these isn't in docs/17's own REST list (which has `/generation/reset` instead) — added anyway since the exit criterion explicitly requires rollback capability and leaving it unreachable via REST would make the engine's own core feature untestable end-to-end from outside a unit test.
+- `app/Modules/Probe/ProbeModule.php` now also implements `GeneratorInterface` — fixed, deterministic content, proving the full pipeline.
+- **Fixed `ProbeStandard::generate()`** to delegate to the module for real (same fix-forward pattern as Phase 5's `discover()`/`validate()`); only `score()`/`monitor()`/`report()` still throw.
+- **A real functional gap caught and fixed:** `FileRepository` (Phase 1) only ever creates directories *below* its configured base directory, never the base directory itself. Without a fix, every `GenerationService::publish()` call would fail on a fresh install where `storage/generated/` has never been created. Fixed: `Plugin::activate()` now calls `wp_mkdir_p()` to ensure it exists.
+- `tests/Unit/Support/InMemoryFilesystem.php` — a small in-memory `WP_Filesystem_Base` test double, needed because `GenerationService::publish()`/`rollback()`'s multi-step read/write/move sequences would make call-by-call Mockery expectations brittle; not a WordPress-core mirror, so it lives under `tests/Unit/Support/`, not `tests/stubs/`.
+- 2 new test files + 1 test-support file + 5 extended existing tests.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (154 tests, 228 assertions)` (up from 135/190), PHPStan level 8 → `[OK] No errors` across 48 files (up from 43), PHPCS hybrid ruleset → 0 errors/0 warnings across 80 files (two long-line warnings from the new tests fixed by wrapping, one multi-line closure `use()` clause fixed to one-parameter-per-line), `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+### Explicitly out of scope for Phase 6 (deferred)
+- Full version history (only a single rollback point exists, not a version log) — no `oxy_*` table exists yet to back one
+- Scoring/Monitoring/Reporting engines and their REST routes
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service (proper), Queue
+- Any real, user-facing Module
+- `docs/17-Generation-Engine.md`'s `oxy_ai_generation_before`/`after`/`template`/`output`/`cache` filters — no consumer yet
+- Custom capability registration — `/generation/*` reuses the same `manage_options` interim default
+- `package.json` / frontend tooling

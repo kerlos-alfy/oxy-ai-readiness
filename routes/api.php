@@ -10,8 +10,10 @@ declare(strict_types=1);
 
 use OxyAI\Core\Application;
 use OxyAI\Http\Controllers\DiscoveryController;
+use OxyAI\Http\Controllers\GenerationController;
 use OxyAI\Http\Controllers\ValidationController;
 use OxyAI\Services\DiscoveryService;
+use OxyAI\Services\GenerationService;
 use OxyAI\Services\ValidationService;
 
 /**
@@ -30,7 +32,12 @@ use OxyAI\Services\ValidationService;
  * criterion — no POST /discovery/scan or /discovery/reset route yet
  * (see DECISIONS.md). Validation: `run` is a POST since running a
  * validator is a genuine action (not a data-mutating one — it doesn't
- * write to WordPress, the filesystem, or the database).
+ * write to WordPress, the filesystem, or the database). Generation:
+ * `/generation/rollback` is not in docs/17-Generation-Engine.md's own
+ * REST list (which has `/generation/reset` instead) but the Phase 6
+ * exit criterion explicitly requires rollback capability, so it's
+ * exposed under its own, more accurate name rather than left
+ * unreachable via REST — see DECISIONS.md.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -70,6 +77,50 @@ return static function (Application $app): void {
         'permission_callback' => [$validationController, 'authorize'],
         'args' => [
             'resource_id' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+        ],
+    ]);
+
+    $generationController = new GenerationController($app->make(GenerationService::class));
+
+    register_rest_route('oxy-ai/v1', '/generation', [
+        'methods' => 'GET',
+        'callback' => [$generationController, 'index'],
+        'permission_callback' => [$generationController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/generation/preview', [
+        'methods' => 'GET',
+        'callback' => [$generationController, 'preview'],
+        'permission_callback' => [$generationController, 'authorize'],
+        'args' => [
+            'generator_id' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/generation/publish', [
+        'methods' => 'POST',
+        'callback' => [$generationController, 'publish'],
+        'permission_callback' => [$generationController, 'authorize'],
+        'args' => [
+            'generator_id' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/generation/rollback', [
+        'methods' => 'POST',
+        'callback' => [$generationController, 'rollback'],
+        'permission_callback' => [$generationController, 'authorize'],
+        'args' => [
+            'generator_id' => [
                 'required' => true,
                 'type' => 'string',
             ],

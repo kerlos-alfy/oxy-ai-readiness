@@ -7,33 +7,56 @@ namespace OxyAI\Tests\Unit\Routes;
 use Brain\Monkey\Functions;
 use OxyAI\Core\Application;
 use OxyAI\Core\Container;
+use OxyAI\Repositories\FileRepository;
 use OxyAI\Services\DiscoveryService;
+use OxyAI\Services\GenerationService;
 use OxyAI\Services\ValidationService;
+use OxyAI\Tests\Unit\Support\InMemoryFilesystem;
 use OxyAI\Tests\Unit\TestCase;
 
 final class ApiRoutesTest extends TestCase
 {
-    public function test_registers_the_discovery_and_validation_rest_routes(): void
+    public function test_registers_the_discovery_validation_and_generation_rest_routes(): void
     {
         $app = new Application(new Container());
         $app->singleton(DiscoveryService::class, static fn (): DiscoveryService => new DiscoveryService());
         $app->singleton(ValidationService::class, static fn (): ValidationService => new ValidationService());
+        $app->singleton(GenerationService::class, static function (): GenerationService {
+            return new GenerationService(
+                new ValidationService(),
+                new DiscoveryService(),
+                new FileRepository('/base', new InMemoryFilesystem())
+            );
+        });
 
-        $expectedGetRoutes = ['/discovery', '/discovery/map', '/discovery/resources', '/validation'];
+        $expectedGetRoutes = [
+            '/discovery', '/discovery/map', '/discovery/resources',
+            '/validation', '/generation', '/generation/preview',
+        ];
+        $expectedPostRoutes = ['/validation/run', '/generation/publish', '/generation/rollback'];
 
         Functions\expect('register_rest_route')
-            ->times(5)
-            ->withArgs(static function (string $namespace, string $route, array $args) use ($expectedGetRoutes): bool {
-                if ($namespace !== 'oxy-ai/v1' || !isset($args['callback'], $args['permission_callback'])) {
-                    return false;
-                }
+            ->times(9)
+            ->withArgs(
+                static function (
+                    string $namespace,
+                    string $route,
+                    array $args
+                ) use (
+                    $expectedGetRoutes,
+                    $expectedPostRoutes
+                ): bool {
+                    if ($namespace !== 'oxy-ai/v1' || !isset($args['callback'], $args['permission_callback'])) {
+                        return false;
+                    }
 
-                if ($route === '/validation/run') {
-                    return $args['methods'] === 'POST';
-                }
+                    if (in_array($route, $expectedPostRoutes, true)) {
+                        return $args['methods'] === 'POST';
+                    }
 
-                return in_array($route, $expectedGetRoutes, true) && $args['methods'] === 'GET';
-            });
+                    return in_array($route, $expectedGetRoutes, true) && $args['methods'] === 'GET';
+                }
+            );
 
         $registerRoutes = require dirname(__DIR__, 3) . '/routes/api.php';
         $registerRoutes($app);

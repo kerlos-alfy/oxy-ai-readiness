@@ -88,4 +88,27 @@ final class ProbeModuleTest extends TestCase
 
         self::assertSame(ValidationStatus::Fail, $result->status);
     }
+
+    public function test_resource_id_matches_its_own_discovered_resource(): void
+    {
+        $module = new ProbeModule();
+
+        self::assertSame($module->discover()[0]->id, $module->resourceId());
+    }
+
+    public function test_supports_only_its_own_fixture_type(): void
+    {
+        $module = new ProbeModule();
+
+        self::assertTrue($module->supports('internal-fixture'));
+        self::assertFalse($module->supports('robots-txt'));
+    }
+
+    public function test_generate_returns_non_empty_deterministic_content(): void
+    {
+        $module = new ProbeModule();
+
+        self::assertSame($module->generate(), $module->generate());
+        self::assertNotSame('', $module->generate());
+    }
 }

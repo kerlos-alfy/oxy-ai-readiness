@@ -56,6 +56,11 @@ final class PluginTest extends TestCase
             ->twice()
             ->andReturn(true);
 
+        Functions\expect('wp_mkdir_p')
+            ->once()
+            ->with('/storage/generated')
+            ->andReturn(true);
+
         $plugin = new Plugin('/plugin.php', '0.1.0');
 
         $this->expectNotToPerformAssertions();
@@ -73,6 +78,8 @@ final class PluginTest extends TestCase
             ->once()
             ->with('oxy_ai_version', '0.1.0', false)
             ->andReturn(true);
+
+        Functions\expect('wp_mkdir_p')->once()->andReturn(true);
 
         $plugin = new Plugin('/plugin.php', '0.1.0');
 

@@ -50,12 +50,19 @@ final class ProbeStandardTest extends TestCase
         self::assertSame('probe-fixture', $result->resourceId);
     }
 
+    public function test_generate_delegates_to_the_owning_module(): void
+    {
+        $module = new ProbeModule();
+        $standard = new ProbeStandard($module);
+
+        self::assertSame($module->generate(), $standard->generate());
+    }
+
     /**
      * @return iterable<string, array{0: string}>
      */
     public static function unimplementedDelegateMethodProvider(): iterable
     {
-        yield 'generate' => ['generate'];
         yield 'score' => ['score'];
         yield 'monitor' => ['monitor'];
         yield 'report' => ['report'];

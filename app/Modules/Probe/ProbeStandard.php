@@ -21,13 +21,14 @@ use OxyAI\Exceptions\ModuleException;
  * Discovery provider/Generator/Validator/ScoreProvider/Monitor/
  * Reporter.
  *
- * As of Phase 4/5, ProbeModule genuinely has a Discovery provider and a
- * Validator (it implements both interfaces), so discover()/validate()
- * now delegate to it for real, per the expectation set in Phase 3's own
- * decision log ("their Standard delegate methods stop throwing once
- * their owning Module actually registers a Generator/Validator/etc.").
- * generate()/score()/monitor()/report() still throw — Generation,
- * Scoring, Monitoring, and Reporting engines don't exist yet.
+ * As of Phases 4–6, ProbeModule genuinely has a Discovery provider, a
+ * Validator, and a Generator (it implements all three interfaces), so
+ * discover()/validate()/generate() now delegate to it for real, per the
+ * expectation set in Phase 3's own decision log ("their Standard
+ * delegate methods stop throwing once their owning Module actually
+ * registers a Generator/Validator/etc."). score()/monitor()/report()
+ * still throw — Scoring, Monitoring, and Reporting engines don't exist
+ * yet.
  */
 final class ProbeStandard implements StandardInterface
 {
@@ -62,7 +63,7 @@ final class ProbeStandard implements StandardInterface
 
     public function generate(): mixed
     {
-        throw $this->noDelegate('Generator');
+        return $this->module->generate();
     }
 
     public function validate(): mixed
