@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<ruleset name="OxyAIReadiness">
+    <description>Coding standard for Oxy AI Readiness (docs/28-Testing-Strategy.md, docs/29-Developer-Guide.md).
+
+    Hybrid standard: this project is modern OOP PHP (PSR-4 autoloading, typed
+    and readonly properties, camelCase methods) rather than classic
+    procedural WordPress plugin code, per docs/29-Developer-Guide.md
+    ("PSR-12 where compatible"; Naming Conventions: Classes PascalCase,
+    Methods camelCase). PSR-12 governs formatting and naming. WordPress
+    Coding Standards is applied narrowly, for the security/API-usage/i18n
+    sniffs that matter regardless of code style — not for its procedural
+    formatting rules (tabs, snake_case variables, K&amp;R braces), which
+    would conflict with PSR-12 and are intentionally not included.
+    </description>
+
+    <file>app</file>
+    <file>tests</file>
+
+    <arg name="basepath" value="."/>
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="PSR12"/>
+
+    <!--
+    PHPUnit's snake_case descriptive test-method convention
+    (test_it_does_the_thing) is intentional and takes precedence over
+    PSR-1 camelCase for test methods specifically; app/ code still enforces
+    camelCase per docs/29-Developer-Guide.md.
+    -->
+    <rule ref="PSR1.Methods.CamelCapsMethodName.NotCamelCaps">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
+
+    <!--
+    tests/stubs/wp-core-stubs.php stands in for real WordPress core classes
+    (WP_User, WP_Post, WP_Filesystem_Base) and must mirror their actual
+    global, non-namespaced, snake_case-method API exactly rather than this
+    project's own naming convention.
+    -->
+    <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
+        <exclude-pattern>tests/stubs/*</exclude-pattern>
+    </rule>
+    <rule ref="PSR1.Classes.ClassDeclaration.MultipleClasses">
+        <exclude-pattern>tests/stubs/*</exclude-pattern>
+    </rule>
+    <rule ref="Squiz.Classes.ValidClassName.NotCamelCaps">
+        <exclude-pattern>tests/stubs/*</exclude-pattern>
+    </rule>
+
+    <rule ref="WordPress.Security">
+        <!--
+        Fires on sprintf() building InvalidArgumentException/RuntimeException
+        messages, which are never echoed to a browser — not the HTML/JS
+        output context this sniff targets. Genuine echo/print output
+        escaping (WordPress.Security.EscapeOutput.OutputNotEscaped etc.)
+        stays enforced.
+        -->
+        <exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+    </rule>
+    <rule ref="WordPress.WP"/>
+    <rule ref="WordPress.DB"/>
+    <rule ref="WordPressVIPMinimum.Security"/>
+
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="oxy-ai-readiness"/>
+            </property>
+        </properties>
+    </rule>
+
+    <rule ref="Generic.Arrays.DisallowLongArraySyntax"/>
+
+    <config name="testVersion" value="8.1-"/>
+    <rule ref="PHPCompatibilityWP"/>
+</ruleset>
