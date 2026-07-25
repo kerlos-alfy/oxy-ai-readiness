@@ -32,15 +32,19 @@ final class Plugin
         $container = new Container();
         $container->singleton(Config::class, fn (): Config => $this->config);
 
+        $hooks = new Hooks();
+        $container->singleton(Hooks::class, static fn (): Hooks => $hooks);
+
         $this->app = new Application($container);
 
         $providers = [
             new CoreServiceProvider($this->app),
+            new RestServiceProvider($this->app),
             new ProbeServiceProvider($this->app),
         ];
 
         $bootstrap = new Bootstrap($this->app, $providers);
-        $this->kernel = new Kernel($bootstrap, new Hooks());
+        $this->kernel = new Kernel($bootstrap, $hooks);
     }
 
     /**

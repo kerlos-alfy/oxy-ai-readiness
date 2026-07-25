@@ -188,3 +188,38 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **109 tests, 142 assertions total repo-wide** (up from 78/89 at the end of Phase 2), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, now genuinely covering `app/Modules/*` too), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 55 files).
 
 **Totals as of end of Phase 3:** adds 2 Contracts + 1 Exception + 7 Event DTOs + 2 Core registries + 1 Core ServiceProvider + 3 Probe module files (16 new `app/` source files) + 8 test files (2 existing files extended) to the Phase 2 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module (Robots/LLMS/etc.), or REST routes exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 4
+| File | Purpose |
+|---|---|
+| `app/DTO/DiscoveredResource.php` | Discovery Map entry value object (id/type/location/status/version/module/health/dependencies/source/lastChecked) + `toArray()` |
+| `app/Contracts/DiscoveryInterface.php` | Per-module Discovery provider contract: `discover(): array<DiscoveredResource>` |
+| `app/Services/DiscoveryService.php` | The Discovery Engine: registerProvider/scan/map/resources/reset, in-memory, lazy-scan-on-first-access, fires `oxy_ai_discovery_started`/`oxy_ai_resource_discovered`/`oxy_ai_discovery_finished` |
+| `app/Core/RestServiceProvider.php` | First REST wiring: hooks `rest_api_init` (via the Container-bound `Hooks`), loads `routes/api.php` |
+| `app/Http/Controllers/DiscoveryController.php` | GET-only controller: `index`/`map`/`resources`, gated by `current_user_can('manage_options')` |
+| `routes/api.php` | Registers `GET /discovery`, `/discovery/map`, `/discovery/resources` under `oxy-ai/v1` |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/CoreServiceProvider.php` | Also binds `DiscoveryService` as a Container singleton |
+| `app/Modules/Probe/ProbeModule.php` | Now also implements `DiscoveryInterface`; `discover()` returns one fixture `DiscoveredResource` |
+| `app/Modules/Probe/ProbeServiceProvider.php` | Registers the probe module with `DiscoveryService` too (single shared `ProbeModule` instance) |
+| `app/Core/Plugin.php` | Binds `Hooks` as a Container singleton (same instance passed to `Kernel`, so `RestServiceProvider` and `Kernel` share one registrar); adds `RestServiceProvider` to the provider list |
+| `phpstan.neon`, `phpcs.xml` | Added `routes/` to analysed/linted paths |
+| `tests/stubs/wp-core-stubs.php` | Added minimal `WP_REST_Request`/`WP_REST_Response` stand-ins |
+
+## Tests (`tests/`) — Phase 4
+| File | Tests |
+|---|---|
+| `tests/Unit/Services/DiscoveryServiceTest.php` | 5 |
+| `tests/Unit/Http/Controllers/DiscoveryControllerTest.php` | 4 |
+| `tests/Unit/Core/RestServiceProviderTest.php` | 2 |
+| `tests/Unit/Routes/ApiRoutesTest.php` | 1 |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +1 (DiscoveryService singleton) |
+| `tests/Unit/Modules/Probe/ProbeModuleTest.php` | +1 (discover() fixture) |
+| `tests/Unit/Modules/Probe/ProbeServiceProviderTest.php` | extended existing case to also assert Discovery registration |
+
+**123 tests, 165 assertions total repo-wide** (up from 109/142 at the end of Phase 3), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 38 files analysed — up from 32, confirming `routes/` is genuinely covered), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 65 files).
+
+**Totals as of end of Phase 4:** adds 1 DTO + 1 Contract + 1 Service + 1 Core ServiceProvider + 1 Http Controller + 1 routes file (6 new `app/`-or-root source files) + 4 new test files (3 existing files extended) to the Phase 3 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, any write/mutating REST route, or Validation/Generation/Scoring/Monitoring/Reporting engine exist yet — still deferred to later phases.

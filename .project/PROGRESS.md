@@ -121,3 +121,39 @@ The user said "start Phase 3 exactly according to the roadmap." Read literally a
 - Discovery/Validation/Generation/Scoring/Monitoring/Reporting engines and their DTOs (Phases 4–7, 9, 13 per the draft plan) — this is why `ProbeStandard`'s six delegate methods throw rather than return real data
 - Any REST route, any admin UI
 - `package.json` / frontend tooling
+
+## Phase 4 — Discovery Engine — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-4`, pushed autonomously per user's standing authorization for this session.**
+
+### Scope
+
+`06-Phase-Plan.md` row 4: "Resource/file/header/endpoint discovery pipeline → Discovery Map, `/discovery/*` REST", exit criterion "Discovery Map correctly lists a known fixture resource; read-only, no writes." User instruction: "Do not implement any Phase 4 features [beyond this]" (i.e. no Phase 5+), proceed autonomously, commit/tag/push without asking.
+
+**Real conflict found and resolved before writing code:** `docs/14-Discovery-Engine.md`'s own REST API section (`GET /discovery`, `/discovery/map`, `/discovery/resources`, `/discovery/modules`; `POST /discovery/scan`, `/discovery/reset`) disagrees with `docs/24-REST-API-Spec.md`'s Discovery API section (`GET /discovery`, `/discovery/files`, `/discovery/resources`; `POST /discovery/run`) — never caught by ADR-003, which only checked route *prefixing*, not cross-doc route-name agreement. Resolved by treating the dedicated engine spec (`docs/14`) as authoritative for Discovery-specific naming, and — per the exit criterion's explicit "read-only, no writes" — implementing only the three GET routes this phase, deferring both docs' POST route (`/scan` or `/run`) entirely rather than guessing which name to build. Logged in `DECISIONS.md`.
+
+### What was built
+
+- `app/DTO/DiscoveredResource.php` — Discovery Map entry (per docs/14's field list) + `toArray()`.
+- `app/Contracts/DiscoveryInterface.php` — per-module Discovery provider contract (docs/22-Plugin-SDK.md's SDK Interfaces list).
+- `app/Services/DiscoveryService.php` — the engine itself: register providers, `scan()` (fires `oxy_ai_discovery_started`/`oxy_ai_resource_discovered`/`oxy_ai_discovery_finished`), `map()`/`resources()` (lazy-scan on first access — no heavy work during Bootstrap), `reset()` (service-level only, no REST route — see conflict note above).
+- `app/Core/RestServiceProvider.php` — the plugin's first REST wiring: hooks `rest_api_init` through the Container-bound `Hooks` registrar, loads `routes/api.php`.
+- `app/Http/Controllers/DiscoveryController.php` + `routes/api.php` — `GET /discovery`, `/discovery/map`, `/discovery/resources` under `oxy-ai/v1`, gated by `current_user_can('manage_options')` (an interim default — see Decisions).
+- `app/Modules/Probe/ProbeModule.php` now also implements `DiscoveryInterface`, returning one fixture `DiscoveredResource` — proving the pipeline end-to-end exactly as the exit criterion specifies ("a known fixture resource"), reusing Phase 3's established probe pattern rather than inventing a new one.
+- `app/Core/Plugin.php` — `Hooks` is now a Container singleton (the same instance shared between `Kernel` and `RestServiceProvider`); `RestServiceProvider` added to the provider list.
+- `tests/stubs/wp-core-stubs.php` — added minimal `WP_REST_Request`/`WP_REST_Response` stand-ins (same "mirror the real WP method names" approach as the existing `WP_User`/`WP_Post`/`WP_Filesystem_Base` stubs).
+- 4 new test files + 3 extended existing ones.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (123 tests, 165 assertions)` (up from 109/142), PHPStan level 8 → `[OK] No errors` across 38 files (up from 32 — `routes/` genuinely added to `phpstan.neon`'s paths, not silently skipped this time), PHPCS hybrid ruleset → 0 errors/0 warnings across 65 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+One real PHPStan finding fixed properly (not suppressed): `DiscoveryService::map()`'s `@return array<...>` didn't account for the private `$map` property still being typed nullable at the point PHPStan analyses the method body (it can't infer that `scan()` — a separate method call — always populates it). Fixed with `return $this->map ?? [];`, honest and type-correct, not an `@phpstan-ignore` suppression.
+
+### Explicitly out of scope for Phase 4 (deferred)
+- `POST /discovery/scan` or `/discovery/reset` REST routes — deferred until a secured, rate-limited, audit-logged POST-endpoint pattern exists (docs/24's API Security list: CSRF/Nonce/Rate Limiting/Audit Logging — none of that shared infra exists yet)
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Any real, user-facing Module; Validation/Generation/Scoring/Monitoring/Reporting engines
+- Custom capability registration (`manage_oxy`, `view_audit`, etc. per docs/26-Security-Spec.md) — Discovery routes use the built-in `manage_options` capability as an interim default
+- Rate limiting, request signing, audit logging for REST access (docs/24/26's API Security lists) — no Cache/Logger service exists yet to back them
+- `package.json` / frontend tooling

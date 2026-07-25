@@ -10,7 +10,9 @@ declare(strict_types=1);
 
 namespace OxyAI\Modules\Probe;
 
+use OxyAI\Contracts\DiscoveryInterface;
 use OxyAI\Contracts\ModuleInterface;
+use OxyAI\DTO\DiscoveredResource;
 
 /**
  * The "one minimal internal 'probe' module ... for validation only (not
@@ -21,8 +23,14 @@ use OxyAI\Contracts\ModuleInterface;
  * Manager, or Audit Engine exists yet to register into, so
  * assets()/routes()/settings()/permissions()/audit() honestly return
  * nothing rather than fabricate placeholder entries.
+ *
+ * Also implements DiscoveryInterface (Phase 4): registers one fixture
+ * DiscoveredResource with DiscoveryService, proving the Discovery
+ * pipeline end-to-end per the Phase 4 exit criterion ("Discovery Map
+ * correctly lists a known fixture resource") without discovering any
+ * real site data.
  */
-final class ProbeModule implements ModuleInterface
+final class ProbeModule implements ModuleInterface, DiscoveryInterface
 {
     public function id(): string
     {
@@ -88,5 +96,23 @@ final class ProbeModule implements ModuleInterface
 
     public function shutdown(): void
     {
+    }
+
+    public function discover(): array
+    {
+        return [
+            new DiscoveredResource(
+                id: 'probe-fixture',
+                type: 'internal-fixture',
+                location: 'internal://probe',
+                status: 'active',
+                version: $this->version(),
+                module: $this->id(),
+                health: 'healthy',
+                dependencies: [],
+                source: 'probe',
+                lastChecked: gmdate('c')
+            ),
+        ];
     }
 }

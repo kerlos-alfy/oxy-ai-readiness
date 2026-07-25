@@ -15,6 +15,7 @@
 
     <file>app</file>
     <file>tests</file>
+    <file>routes</file>
     <file>oxy-ai-readiness.php</file>
     <file>uninstall.php</file>
 

@@ -9,6 +9,7 @@ use OxyAI\Core\Container;
 use OxyAI\Core\CoreServiceProvider;
 use OxyAI\Core\ModuleRegistry;
 use OxyAI\Core\StandardsRegistry;
+use OxyAI\Services\DiscoveryService;
 use OxyAI\Tests\Unit\TestCase;
 
 final class CoreServiceProviderTest extends TestCase
@@ -25,5 +26,16 @@ final class CoreServiceProviderTest extends TestCase
 
         self::assertInstanceOf(StandardsRegistry::class, $app->make(StandardsRegistry::class));
         self::assertSame($app->make(StandardsRegistry::class), $app->make(StandardsRegistry::class));
+    }
+
+    public function test_register_binds_discovery_service_as_a_singleton(): void
+    {
+        $app = new Application(new Container());
+        $provider = new CoreServiceProvider($app);
+
+        $provider->register();
+
+        self::assertInstanceOf(DiscoveryService::class, $app->make(DiscoveryService::class));
+        self::assertSame($app->make(DiscoveryService::class), $app->make(DiscoveryService::class));
     }
 }

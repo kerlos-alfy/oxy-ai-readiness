@@ -42,4 +42,16 @@ final class ProbeModuleTest extends TestCase
 
         $this->expectNotToPerformAssertions();
     }
+
+    public function test_discover_returns_exactly_one_fixture_resource(): void
+    {
+        $module = new ProbeModule();
+
+        $resources = $module->discover();
+
+        self::assertCount(1, $resources);
+        self::assertSame('probe-fixture', $resources[0]->id);
+        self::assertSame('probe', $resources[0]->module);
+        self::assertSame('healthy', $resources[0]->health);
+    }
 }

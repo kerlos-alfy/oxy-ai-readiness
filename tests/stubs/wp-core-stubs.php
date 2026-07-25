@@ -1,17 +1,17 @@
 <?php
 
 /**
- * Minimal local stand-ins for WordPress core classes referenced by the
- * Repository Foundation, used only under PHPUnit + Brain Monkey (which
- * mocks WordpPress *functions*, not classes).
+ * Minimal local stand-ins for WordPress core classes, used only under
+ * PHPUnit + Brain Monkey (which mocks WordPress *functions*, not
+ * classes).
  *
  * These are intentionally NOT a substitute for a real WordPress test
- * environment or for `php-stubs/wordpress-stubs` (which should be added
- * as a dev dependency for IDE/PHPStan purposes once `composer install`
- * can actually run — see the Phase 1 report's Environment Limitation
- * section). They exist only so unit tests can construct plain WP_User /
- * WP_Post value objects and mock WP_Filesystem_Base's public surface,
- * without loading WordPress itself.
+ * environment or for `php-stubs/wordpress-stubs` (added as a dev
+ * dependency for PHPStan; PHPStan analyses `app/`, never this file).
+ * They exist only so unit tests can construct plain WP_User/WP_Post/
+ * WP_REST_Request/WP_REST_Response value objects and mock
+ * WP_Filesystem_Base's public surface, without loading WordPress
+ * itself.
  *
  * @package OxyAI
  */
@@ -84,5 +84,42 @@ if (!function_exists('WP_Filesystem')) {
     function WP_Filesystem(): bool
     {
         return true;
+    }
+}
+
+if (!class_exists('WP_REST_Request')) {
+    class WP_REST_Request
+    {
+        /** @var array<string, mixed> */
+        private array $params = [];
+
+        public function get_param(string $key): mixed
+        {
+            return $this->params[$key] ?? null;
+        }
+
+        public function set_param(string $key, mixed $value): void
+        {
+            $this->params[$key] = $value;
+        }
+    }
+}
+
+if (!class_exists('WP_REST_Response')) {
+    class WP_REST_Response
+    {
+        public function __construct(private mixed $data = null, private int $status = 200)
+        {
+        }
+
+        public function get_data(): mixed
+        {
+            return $this->data;
+        }
+
+        public function get_status(): int
+        {
+            return $this->status;
+        }
     }
 }

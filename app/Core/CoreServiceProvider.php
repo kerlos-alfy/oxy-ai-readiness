@@ -11,15 +11,17 @@ declare(strict_types=1);
 namespace OxyAI\Core;
 
 use OxyAI\Providers\ServiceProvider;
+use OxyAI\Services\DiscoveryService;
 
 /**
  * The first real consumer of the `ServiceProvider` pattern introduced
- * in Phase 2: binds `ModuleRegistry`/`StandardsRegistry` as Container
- * singletons so every later Module/Standard ServiceProvider can
- * resolve the same shared registry instance. No runtime behavior
- * belongs in `boot()` here — registering Modules/Standards into these
- * registries is each owning Module's own ServiceProvider's job (see
- * `Modules/Probe/ProbeServiceProvider`), not Core's.
+ * in Phase 2: binds `ModuleRegistry`/`StandardsRegistry`/
+ * `DiscoveryService` as Container singletons so every later Module
+ * ServiceProvider can resolve the same shared instances. No runtime
+ * behavior belongs in `boot()` here — registering Modules/Standards/
+ * Discovery providers into these is each owning Module's own
+ * ServiceProvider's job (see `Modules/Probe/ProbeServiceProvider`), not
+ * Core's.
  */
 final class CoreServiceProvider extends ServiceProvider
 {
@@ -29,6 +31,10 @@ final class CoreServiceProvider extends ServiceProvider
         $this->app->singleton(
             StandardsRegistry::class,
             static fn (): StandardsRegistry => new StandardsRegistry()
+        );
+        $this->app->singleton(
+            DiscoveryService::class,
+            static fn (): DiscoveryService => new DiscoveryService()
         );
     }
 }
