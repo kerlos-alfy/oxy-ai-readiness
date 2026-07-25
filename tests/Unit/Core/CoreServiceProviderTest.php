@@ -12,6 +12,7 @@ use OxyAI\Core\ModuleRegistry;
 use OxyAI\Core\StandardsRegistry;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 use OxyAI\Tests\Unit\TestCase;
 
@@ -63,5 +64,16 @@ final class CoreServiceProviderTest extends TestCase
 
         self::assertInstanceOf(GenerationService::class, $app->make(GenerationService::class));
         self::assertSame($app->make(GenerationService::class), $app->make(GenerationService::class));
+    }
+
+    public function test_register_binds_scoring_service_as_a_singleton(): void
+    {
+        $app = new Application(new Container());
+        $provider = new CoreServiceProvider($app);
+
+        $provider->register();
+
+        self::assertInstanceOf(ScoringService::class, $app->make(ScoringService::class));
+        self::assertSame($app->make(ScoringService::class), $app->make(ScoringService::class));
     }
 }

@@ -14,18 +14,22 @@ use OxyAI\Providers\ServiceProvider;
 use OxyAI\Repositories\FileRepository;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 
 /**
  * The first real consumer of the `ServiceProvider` pattern introduced
  * in Phase 2: binds `ModuleRegistry`/`StandardsRegistry`/
- * `DiscoveryService`/`ValidationService`/`GenerationService` as
- * Container singletons so every later Module ServiceProvider can
- * resolve the same shared instances. No runtime behavior belongs in
- * `boot()` here — registering Modules/Standards/Discovery providers/
- * Validators/Generators into these is each owning Module's own
- * ServiceProvider's job (see `Modules/Probe/ProbeServiceProvider`), not
- * Core's.
+ * `DiscoveryService`/`ValidationService`/`GenerationService`/
+ * `ScoringService` as Container singletons so every later Module
+ * ServiceProvider can resolve the same shared instances. No runtime
+ * behavior belongs in `boot()` here — registering Modules/Standards/
+ * Discovery providers/Validators/Generators into these is each owning
+ * Module's own ServiceProvider's job (see
+ * `Modules/Probe/ProbeServiceProvider`), not Core's. `ScoringService`
+ * has no per-module registration step at all — it is a stateless
+ * calculator over whatever `ValidationResult`s it's given, not a
+ * registry (see DECISIONS.md).
  */
 final class CoreServiceProvider extends ServiceProvider
 {
@@ -55,5 +59,7 @@ final class CoreServiceProvider extends ServiceProvider
                 $files
             );
         });
+
+        $this->app->singleton(ScoringService::class, static fn (): ScoringService => new ScoringService());
     }
 }

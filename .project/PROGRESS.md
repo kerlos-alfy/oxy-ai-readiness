@@ -226,3 +226,38 @@ One real PHPStan finding fixed properly (not suppressed): `DiscoveryService::map
 - `docs/17-Generation-Engine.md`'s `oxy_ai_generation_before`/`after`/`template`/`output`/`cache` filters — no consumer yet
 - Custom capability registration — `/generation/*` reuses the same `manage_options` interim default
 - `package.json` / frontend tooling
+
+## Phase 7 — Scoring Engine — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-7`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 7: "Weighted scoring, single resolved grade/label scale (Q4), confidence/trend, `/score/*` REST," exit criterion "Score recalculates deterministically from a fixed set of validation results; grade boundary unit tests pass." Q4 (score/grade boundaries) was already resolved in Phase 0.5 via ADR-005 — no open question blocked this phase.
+
+### What was built
+
+- `app/DTO/Grade.php` — native enum, `fromScore()` implementing ADR-005's canonical table exactly, `label()`.
+- `app/DTO/Trend.php`, `app/DTO/ConfidenceLevel.php` — native enums per docs/15-Scoring-Engine.md's Trend Status and Confidence Score output lists.
+- `app/DTO/ScoreResult.php`, `app/Services/ScoringService.php` — `calculate(array $validationResults): ScoreResult` is a pure function of its input for score/grade/confidence (the exit criterion's "deterministically from a fixed set"); `trend` is inherently comparative (docs' own "Track score history"), so it depends on this instance's in-memory calculation history — same limitation as every other engine's in-memory state so far (no `oxy_*` score-history table exists).
+- `app/Http/Controllers/ScoreController.php` + `routes/api.php`'s `GET /score` — chains Discovery → Validation → Scoring exactly per docs/15's own pipeline diagram.
+- `tests/Unit/DTO/GradeTest.php` — one data-provider-driven test covering all 20 boundary/near-boundary cases (every grade's lower bound and the value just below it), directly satisfying the exit criterion's own wording ("grade boundary unit tests pass").
+- 3 new test files + 2 extended existing ones.
+
+### A documented weighting simplification
+
+docs/15's "WEIGHTING" section defines Critical/High/Medium/Low/Info severity weights (20/10/5/2/0) — but `ValidationResult` (Phase 5) carries a `status` (Pass/Warning/Fail/...), not a severity. Rather than retrofit Phase 5 to add a severity axis it was never scoped to have, this phase's score calculation weights by status instead (Pass=1.0, Warning=0.5, Fail=0.0) — a different, simpler axis that's honest about what data actually exists right now. True severity-weighted scoring applies once the Audit Engine (a later phase) gives rule results a severity. Logged in `DECISIONS.md`.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (185 tests, 292 assertions)` (up from 154/228), PHPStan level 8 → `[OK] No errors` across 54 files (up from 48), PHPCS hybrid ruleset → 0 errors/0 warnings across 89 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+One narrow PHPCS false-positive fixed with an inline suppression, not a ruleset-wide exclusion: `PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext` fired on `match ($this)` inside `Grade::label()` — a legitimate PHP 8.1 enum method using `$this` to match against its own case, which this sniff version doesn't recognize as valid inside enum bodies.
+
+### Explicitly out of scope for Phase 7 (deferred)
+- Severity-weighted (Critical/High/Medium/Low/Info) scoring — depends on an Audit Engine that doesn't exist yet
+- Persisted score history / trend surviving across requests — no `oxy_*` table exists yet
+- Category scores (Discovery 20%/Content 20%/etc.), bonus/penalty system, industry benchmarks, achievements — docs/15's fuller feature set, well beyond the exit criterion
+- A `ScoreProviderInterface` for per-module score contributions — Scoring this phase is a stateless calculator over `ValidationResult`s, not a registry like Discovery/Validation/Generation; `ProbeStandard::score()` still throws
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Monitoring/Reporting engines, any real user-facing Module, any admin UI, `package.json`/frontend tooling

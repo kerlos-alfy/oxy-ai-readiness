@@ -10,13 +10,14 @@ use OxyAI\Core\Container;
 use OxyAI\Repositories\FileRepository;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 use OxyAI\Tests\Unit\Support\InMemoryFilesystem;
 use OxyAI\Tests\Unit\TestCase;
 
 final class ApiRoutesTest extends TestCase
 {
-    public function test_registers_the_discovery_validation_and_generation_rest_routes(): void
+    public function test_registers_the_discovery_validation_generation_and_score_rest_routes(): void
     {
         $app = new Application(new Container());
         $app->singleton(DiscoveryService::class, static fn (): DiscoveryService => new DiscoveryService());
@@ -28,15 +29,16 @@ final class ApiRoutesTest extends TestCase
                 new FileRepository('/base', new InMemoryFilesystem())
             );
         });
+        $app->singleton(ScoringService::class, static fn (): ScoringService => new ScoringService());
 
         $expectedGetRoutes = [
             '/discovery', '/discovery/map', '/discovery/resources',
-            '/validation', '/generation', '/generation/preview',
+            '/validation', '/generation', '/generation/preview', '/score',
         ];
         $expectedPostRoutes = ['/validation/run', '/generation/publish', '/generation/rollback'];
 
         Functions\expect('register_rest_route')
-            ->times(9)
+            ->times(10)
             ->withArgs(
                 static function (
                     string $namespace,

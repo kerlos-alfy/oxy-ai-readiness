@@ -293,3 +293,32 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **154 tests, 228 assertions total repo-wide** (up from 135/190 at the end of Phase 5), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 48 files analysed — up from 43), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 80 files).
 
 **Totals as of end of Phase 6:** adds 1 DTO + 1 Contract + 1 Exception + 1 Service + 1 Http Controller (5 new `app/` source files) + 1 test-support file + 2 new test files (5 existing files extended) to the Phase 5 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, or Scoring/Monitoring/Reporting engine exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 7
+| File | Purpose |
+|---|---|
+| `app/DTO/Grade.php` | Canonical Score→Grade→Label enum (ADR-005), `fromScore()`/`label()` |
+| `app/DTO/Trend.php` | Improving/Stable/Declining/Unknown enum |
+| `app/DTO/ConfidenceLevel.php` | VeryHigh/High/Medium/Low enum, `fromRatio()` |
+| `app/DTO/ScoreResult.php` | score/grade/confidence/trend/calculatedAt + `toArray()` |
+| `app/Services/ScoringService.php` | The Scoring Engine: `calculate(array ValidationResult): ScoreResult` — status-weighted (Pass=1.0/Warning=0.5/Fail=0.0), confidence from applicable-vs-total ratio, in-memory trend, fires `oxy_ai_score_calculated`/`grade_changed`/`trend_updated`/`confidence_updated` |
+| `app/Http/Controllers/ScoreController.php` | `index` (GET /score) — chains Discovery map → Validation results → Scoring |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/CoreServiceProvider.php` | Also binds `ScoringService` as a Container singleton (no per-module registration — it's a stateless calculator, not a registry) |
+| `routes/api.php` | Adds `GET /score` |
+
+## Tests (`tests/`) — Phase 7
+| File | Tests |
+|---|---|
+| `tests/Unit/DTO/GradeTest.php` | 1 method, 20 data-provider cases covering every grade boundary exactly (the Phase 7 exit criterion's own words: "grade boundary unit tests pass") |
+| `tests/Unit/Services/ScoringServiceTest.php` | 7 |
+| `tests/Unit/Http/Controllers/ScoreControllerTest.php` | 3 |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +1 (ScoringService singleton) |
+| `tests/Unit/Routes/ApiRoutesTest.php` | extended to cover the 10th route |
+
+**185 tests, 292 assertions total repo-wide** (up from 154/228 at the end of Phase 6), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 54 files analysed — up from 48), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 89 files, including one narrow inline suppression for a PHPCompatibility false positive on `$this` inside an enum method — see Decisions).
+
+**Totals as of end of Phase 7:** adds 4 DTOs + 1 Service + 1 Http Controller (6 new `app/` source files) + 3 new test files (2 existing files extended) to the Phase 6 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, or Monitoring/Reporting engine exist yet — still deferred to later phases.

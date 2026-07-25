@@ -11,9 +11,11 @@ declare(strict_types=1);
 use OxyAI\Core\Application;
 use OxyAI\Http\Controllers\DiscoveryController;
 use OxyAI\Http\Controllers\GenerationController;
+use OxyAI\Http\Controllers\ScoreController;
 use OxyAI\Http\Controllers\ValidationController;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 
 /**
@@ -125,5 +127,17 @@ return static function (Application $app): void {
                 'type' => 'string',
             ],
         ],
+    ]);
+
+    $scoreController = new ScoreController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(ScoringService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/score', [
+        'methods' => 'GET',
+        'callback' => [$scoreController, 'index'],
+        'permission_callback' => [$scoreController, 'authorize'],
     ]);
 };
