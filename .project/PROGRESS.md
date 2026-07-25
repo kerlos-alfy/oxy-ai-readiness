@@ -261,3 +261,34 @@ One narrow PHPCS false-positive fixed with an inline suppression, not a ruleset-
 - A `ScoreProviderInterface` for per-module score contributions — Scoring this phase is a stateless calculator over `ValidationResult`s, not a registry like Discovery/Validation/Generation; `ProbeStandard::score()` still throws
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
 - Monitoring/Reporting engines, any real user-facing Module, any admin UI, `package.json`/frontend tooling
+
+## Phase 8 — First end-to-end module: Robots — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-8`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 8: "Full Robots module (builder, merge/conflict detection, versioning) wired through Discovery→Generation→Validation→Scoring, proving the whole pipeline on one concrete, well-specified feature before parallelizing," exit criterion "`/robots/*` REST fully functional; snapshot test on generated `robots.txt`; audit rule shows in Scoring output."
+
+**Scoped to the exit criterion, not docs/07-Robots-Spec.md's full aspirational feature set.** That document describes a visual rule builder, version history with one-click restore, auto-backup, third-party SEO-plugin (Yoast/RankMath/etc.) merge/conflict detection, multi-format import/export, and an admin UI — none of which the exit criterion requires and most of which need a Settings/DB-persistence phase and the Admin UI phase (12) this project hasn't reached. Built instead: real generation logic (a fixed, genuinely-correct default ruleset), real validation logic, and the REST surface actually named in the exit criterion. Logged in `DECISIONS.md`.
+
+### What was built
+
+- `app/Modules/Robots/RobotsRule.php`, `RobotsModule.php`, `RobotsStandard.php`, `RobotsServiceProvider.php` — the first *real*, user-facing Module, following the exact same shape `Modules/Probe` established (implements `ModuleInterface`+`DiscoveryInterface`+`ValidatorInterface`+`GeneratorInterface`; `RobotsStandard` owns `robots.txt` per ADR-001 and delegates discover/validate/generate, still throwing for score/monitor/report). The default ruleset is WordPress's own standard `/wp-admin/` disallow (with `admin-ajax.php` explicitly allowed, matching WordPress core's real virtual robots.txt) plus docs/07's documented "Allow AI" template for GPTBot/ChatGPT-User/Google-Extended/ClaudeBot/PerplexityBot — real, correct content, not a fabricated fixture.
+- `app/Http/Controllers/RobotsController.php` + `routes/api.php` additions — `GET /robots`, `GET /robots/preview`, `POST /robots/save`, `POST /robots/validate`, `POST /robots/reset`. A thin facade: no new generation/validation logic lives in the controller — it calls the same `DiscoveryService`/`ValidationService`/`GenerationService` every other engine controller uses, proving those engines generalize to a real feature, not just the internal probe.
+- `tests/Unit/Modules/Robots/RobotsModuleSnapshotTest.php` — the exit criterion's own explicit requirement: freezes the exact expected `robots.txt` output byte-for-byte.
+- `tests/Unit/EndToEnd/RobotsScoringEndToEndTest.php` — the exit criterion's "audit rule shows in Scoring output" requirement, proven using the **real** `Plugin` wiring (constructs the actual Container/Bootstrap/ServiceProvider chain, not mocks) — confirms a robots.txt-attributable `ValidationResult` is present in the set handed to `ScoringService` and that it genuinely affects the calculated grade.
+- 6 new test files + 1 extended (`ApiRoutesTest`, now covering 15 routes).
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (207 tests, 345 assertions)` (up from 185/292), PHPStan level 8 → `[OK] No errors` across 59 files (up from 54), PHPCS hybrid ruleset → 0 errors/0 warnings across 100 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+### Explicitly out of scope for Phase 8 (deferred)
+- Visual rule builder, live preview UI, version history with one-click restore, auto-backup (`storage/backups/robots/`) — need persisted settings/version storage and the Admin UI phase
+- Third-party SEO-plugin (Yoast/RankMath/AIOSEO/SEOPress/etc.) detection and merge/conflict resolution
+- Multi-format import/export (TXT/JSON/CSV/Markdown)
+- User-customizable rules (the ruleset is fixed/hardcoded this phase) — needs Settings/DB persistence
+- Custom capability registration (`manage_robots`) — reuses the same `manage_options` interim default
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Monitoring/Reporting engines, any other real feature Module, any admin UI, `package.json`/frontend tooling

@@ -237,3 +237,25 @@ Canonical, ongoing decision log starting at Phase 1. Phase 0/0.5 decisions (incl
 **Context:** The installed `PHPCompatibilityWP` sniff set flagged `$this` inside `match ($this) { self::APlus, ... }` as "can no longer be used in a plain function or method since PHP 7.1" — a false positive: this is a PHP 8.1 enum method, where `$this` legitimately refers to the enum case instance, not a plain function/method the sniff's older assumption is guarding against.
 **Rationale:** Scoped to the single line that triggers it, consistent with every other PHPCS exclusion so far being as narrow as possible. If future enum methods hit the same false positive repeatedly, that's the signal to promote this to a scoped `exclude-pattern` in `phpcs.xml` instead — not before.
 **Affects:** `app/DTO/Grade.php`.
+
+## Phase 8 — First end-to-end module: Robots — 2026-07-25
+
+**Decision:** Scoped the Robots module to only what the Phase 8 exit criterion requires (`/robots/*` REST, a snapshot test, an audit rule reaching Scoring output) — not `docs/07-Robots-Spec.md`'s full feature set (visual builder, version history with restore, auto-backup, third-party SEO-plugin merge/conflict detection, multi-format import/export, admin UI).
+**Context:** The roadmap row itself frames this phase as "proving the whole pipeline on one concrete, well-specified feature before parallelizing" — a vertical-slice proof, not a request to build the entire enterprise-grade Robots Module in one phase.
+**Rationale:** Same discipline as every prior phase: build against the exit criterion and the architecture, not the full aspirational doc. The deferred features all need infrastructure that doesn't exist yet — persisted settings/version storage (no DB-infra phase has run) and the Admin UI (a later phase) for the visual builder specifically. Building fake versions of them now (e.g., an in-memory-only "version history" that vanishes every request) would be worse than not building them, since it would look complete without being usable.
+**Affects:** `app/Modules/Robots/*`. Full version history, backups, and third-party plugin merge detection remain open work for whenever the DB-infra and Admin UI phases exist.
+
+**Decision:** The Robots module's default rule set is fixed/hardcoded (WordPress's own standard `/wp-admin/` disallow, `admin-ajax.php` explicitly allowed, plus docs/07's own "Allow AI" template for the five named AI crawlers) — not user-customizable this phase.
+**Context:** Real rule customization (a user adding/editing/removing rules through the eventual visual builder) needs somewhere to persist those custom rules across requests. No Settings Manager or `oxy_*` table exists yet.
+**Rationale:** This is real, correct, deterministic content — not mock/placeholder data (`/wp-admin/` disallow is WordPress's own actual default virtual robots.txt behavior; the AI-crawler allow rules are exactly the "Allow AI" template docs/07 itself documents) — genuinely useful, genuinely testable via the exit criterion's snapshot test, and honest about not yet being end-user-configurable.
+**Affects:** `app/Modules/Robots/RobotsModule.php`. Becomes configurable once a Settings/DB-persistence phase exists to store the customized rules.
+
+**Decision:** `POST /robots/reset` maps to `GenerationService::rollback()` (the existing two-slot current/previous mechanism from Phase 6), not the fuller version-history restore `docs/07-Robots-Spec.md` describes (`DELETE /robots/version/{id}`, arbitrary-version restore).
+**Context:** docs/07 lists `/robots/reset` without much detail on its exact semantics, separately from the fuller `/robots/history`/`/robots/restore`/`DELETE /robots/version/{id}` version-management routes (which need persisted version history this project doesn't have).
+**Rationale:** Reusing the existing, already-tested rollback mechanism gives `/robots/reset` genuine, working behavior now rather than either faking multi-version history or leaving the route unimplemented. Consistent with Phase 6's own `/generation/rollback` precedent (exposing real engine capability under a REST name, rather than building fake depth).
+**Affects:** `app/Http/Controllers/RobotsController.php`.
+
+**Decision:** `RobotsController` is a thin facade with no generation/validation logic of its own — every method delegates to the same `DiscoveryService`/`ValidationService`/`GenerationService` singletons the generic `/discovery`, `/validation`, `/generation` controllers already use.
+**Context:** The roadmap row explicitly frames this phase as proof that the shared engines "generalize" beyond the internal Probe module to a real feature.
+**Rationale:** Duplicating engine logic inside `RobotsController` (e.g., re-implementing publish/rollback there) would defeat the entire point of building centralized engines in Phases 4–7 — the Robots-specific REST surface exists only to expose robots-domain-shaped routes and parameter names, not to reimplement anything.
+**Affects:** `app/Http/Controllers/RobotsController.php`.

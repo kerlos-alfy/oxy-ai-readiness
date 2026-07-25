@@ -11,6 +11,7 @@ declare(strict_types=1);
 use OxyAI\Core\Application;
 use OxyAI\Http\Controllers\DiscoveryController;
 use OxyAI\Http\Controllers\GenerationController;
+use OxyAI\Http\Controllers\RobotsController;
 use OxyAI\Http\Controllers\ScoreController;
 use OxyAI\Http\Controllers\ValidationController;
 use OxyAI\Services\DiscoveryService;
@@ -39,7 +40,12 @@ use OxyAI\Services\ValidationService;
  * REST list (which has `/generation/reset` instead) but the Phase 6
  * exit criterion explicitly requires rollback capability, so it's
  * exposed under its own, more accurate name rather than left
- * unreachable via REST — see DECISIONS.md.
+ * unreachable via REST — see DECISIONS.md. Robots: a thin facade over
+ * the shared engines (`RobotsController` doesn't reimplement
+ * generation/validation logic); `/robots/reset` maps to
+ * `GenerationService::rollback()`, not the fuller version-history
+ * restore docs/07-Robots-Spec.md describes — that needs persisted
+ * settings/version storage this project hasn't built yet.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -139,5 +145,41 @@ return static function (Application $app): void {
         'methods' => 'GET',
         'callback' => [$scoreController, 'index'],
         'permission_callback' => [$scoreController, 'authorize'],
+    ]);
+
+    $robotsController = new RobotsController(
+        $app->make(DiscoveryService::class),
+        $app->make(ValidationService::class),
+        $app->make(GenerationService::class)
+    );
+
+    register_rest_route('oxy-ai/v1', '/robots', [
+        'methods' => 'GET',
+        'callback' => [$robotsController, 'index'],
+        'permission_callback' => [$robotsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/robots/preview', [
+        'methods' => 'GET',
+        'callback' => [$robotsController, 'preview'],
+        'permission_callback' => [$robotsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/robots/save', [
+        'methods' => 'POST',
+        'callback' => [$robotsController, 'save'],
+        'permission_callback' => [$robotsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/robots/validate', [
+        'methods' => 'POST',
+        'callback' => [$robotsController, 'validate'],
+        'permission_callback' => [$robotsController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/robots/reset', [
+        'methods' => 'POST',
+        'callback' => [$robotsController, 'reset'],
+        'permission_callback' => [$robotsController, 'authorize'],
     ]);
 };

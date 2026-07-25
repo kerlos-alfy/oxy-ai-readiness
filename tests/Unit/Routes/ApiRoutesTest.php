@@ -17,7 +17,7 @@ use OxyAI\Tests\Unit\TestCase;
 
 final class ApiRoutesTest extends TestCase
 {
-    public function test_registers_the_discovery_validation_generation_and_score_rest_routes(): void
+    public function test_registers_every_engine_and_robots_rest_route(): void
     {
         $app = new Application(new Container());
         $app->singleton(DiscoveryService::class, static fn (): DiscoveryService => new DiscoveryService());
@@ -34,11 +34,15 @@ final class ApiRoutesTest extends TestCase
         $expectedGetRoutes = [
             '/discovery', '/discovery/map', '/discovery/resources',
             '/validation', '/generation', '/generation/preview', '/score',
+            '/robots', '/robots/preview',
         ];
-        $expectedPostRoutes = ['/validation/run', '/generation/publish', '/generation/rollback'];
+        $expectedPostRoutes = [
+            '/validation/run', '/generation/publish', '/generation/rollback',
+            '/robots/save', '/robots/validate', '/robots/reset',
+        ];
 
         Functions\expect('register_rest_route')
-            ->times(10)
+            ->times(count($expectedGetRoutes) + count($expectedPostRoutes))
             ->withArgs(
                 static function (
                     string $namespace,

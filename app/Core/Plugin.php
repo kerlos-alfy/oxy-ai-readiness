@@ -11,6 +11,7 @@ declare(strict_types=1);
 namespace OxyAI\Core;
 
 use OxyAI\Modules\Probe\ProbeServiceProvider;
+use OxyAI\Modules\Robots\RobotsServiceProvider;
 use OxyAI\Repositories\OptionsRepository;
 
 /**
@@ -41,6 +42,7 @@ final class Plugin
             new CoreServiceProvider($this->app),
             new RestServiceProvider($this->app),
             new ProbeServiceProvider($this->app),
+            new RobotsServiceProvider($this->app),
         ];
 
         $bootstrap = new Bootstrap($this->app, $providers);

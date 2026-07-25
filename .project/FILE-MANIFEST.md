@@ -322,3 +322,33 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **185 tests, 292 assertions total repo-wide** (up from 154/228 at the end of Phase 6), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 54 files analysed — up from 48), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 89 files, including one narrow inline suppression for a PHPCompatibility false positive on `$this` inside an enum method — see Decisions).
 
 **Totals as of end of Phase 7:** adds 4 DTOs + 1 Service + 1 Http Controller (6 new `app/` source files) + 3 new test files (2 existing files extended) to the Phase 6 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any real feature Module, or Monitoring/Reporting engine exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 8
+| File | Purpose |
+|---|---|
+| `app/Modules/Robots/RobotsRule.php` | Per-User-agent rule value object (userAgent/disallow/allow/crawlDelay) |
+| `app/Modules/Robots/RobotsModule.php` | The first real, user-facing module: `ModuleInterface`+`DiscoveryInterface`+`ValidatorInterface`+`GeneratorInterface`, fixed default ruleset (WP-standard `/wp-admin/` disallow + "Allow AI" template for GPTBot/ChatGPT-User/Google-Extended/ClaudeBot/PerplexityBot) |
+| `app/Modules/Robots/RobotsStandard.php` | Owns the `robots.txt` Standard per ADR-001; delegates discover/validate/generate; score/monitor/report still throw |
+| `app/Modules/Robots/RobotsServiceProvider.php` | Registers the module into ModuleRegistry/DiscoveryService/ValidationService/GenerationService/StandardsRegistry |
+| `app/Http/Controllers/RobotsController.php` | `/robots/*` facade over the shared engines: `index`/`preview`/`save`/`validate`/`reset` |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/Plugin.php` | Adds `RobotsServiceProvider` to the provider list |
+| `routes/api.php` | Adds `GET /robots`, `GET /robots/preview`, `POST /robots/save`, `POST /robots/validate`, `POST /robots/reset` |
+
+## Tests (`tests/`) — Phase 8
+| File | Tests |
+|---|---|
+| `tests/Unit/Modules/Robots/RobotsModuleSnapshotTest.php` | 1 — the exit criterion's own "snapshot test on generated robots.txt," freezing the exact expected output byte-for-byte |
+| `tests/Unit/Modules/Robots/RobotsModuleTest.php` | 6 |
+| `tests/Unit/Modules/Robots/RobotsStandardTest.php` | 3 methods, 5 executed cases (data provider over the three still-throwing methods) |
+| `tests/Unit/Modules/Robots/RobotsServiceProviderTest.php` | 2 |
+| `tests/Unit/Http/Controllers/RobotsControllerTest.php` | 7 |
+| `tests/Unit/EndToEnd/RobotsScoringEndToEndTest.php` | 1 — proves the exit criterion's "audit rule shows in Scoring output" using the real `Plugin` wiring, not mocks |
+| `tests/Unit/Routes/ApiRoutesTest.php` | rewritten to cover all 15 routes (9 GET + 6 POST) |
+
+**207 tests, 345 assertions total repo-wide** (up from 185/292 at the end of Phase 7), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 59 files analysed — up from 54), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 100 files).
+
+**Totals as of end of Phase 8:** adds 1 DTO + 4 Module files + 1 Http Controller (6 new `app/` source files) + 6 new test files (1 existing file extended) to the Phase 7 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any other real feature Module, or Monitoring/Reporting engine exist yet — still deferred to later phases.
