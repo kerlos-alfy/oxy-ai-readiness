@@ -48,3 +48,42 @@ Scope: implemented only the Repository layer described in `docs/02-Architecture.
 - Custom `oxy_*` database tables / migrations (Phase 2)
 - Any Module, any Standard, any REST route
 - `package.json` / frontend tooling (no frontend work in this phase)
+
+## Phase 2 — Foundational Scaffolding — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Approved by the user 2026-07-25.**
+
+### Scope resolution before starting
+
+The originally-drafted `06-Phase-Plan.md` had its own Phase 1 = "Foundational Scaffolding" (bootstrap, Container, `Core/`) and Phase 2 = "Database & shared infrastructure" (migrations, tables, Settings Manager, Logger, Cache Service, Queue). Since the user's actual, approved Phase 1 was narrowed to only the Repository layer, the draft's Phase 2 had an unmet prerequisite: no bootstrap file, Container, or `Core/` existed for migrations/services to register into (`docs/02-Architecture.md`'s Bootstrap Sequence: Autoloader → Constants → Service Container → Register Services → Core Components → ...). Surfaced this gap to the user directly rather than assuming; the user chose to scope this Phase 2 as the deferred Foundational Scaffolding only, explicitly excluding database tables/migrations/Settings Manager/Logger/Cache Service/Queue (pushed to a future phase).
+
+### What was built
+
+- `oxy-ai-readiness.php` — plugin header (name, description, version 0.1.0, min WP 6.5, min PHP 8.1, text domain), a PHP-version guard (admin notice + early return if PHP < 8.1, before the autoloader is even required), then constructs `Core\Plugin` and registers activation/deactivation hooks.
+- `uninstall.php` — `WP_UNINSTALL_PLUGIN` guard only. No cleanup logic written, since nothing persistent exists yet beyond the two option keys `Plugin::activate()` sets.
+- `readme.txt` — WP-standard plugin readme header + changelog.
+- `app/Core/Container.php` — minimal DI container (`bind`/`singleton`/`make`/`has`); factories are zero-argument by design (no bound service yet needs the container to resolve its own dependencies — auto-wiring deferred until a real consumer needs it).
+- `app/Core/Application.php` — holds the `Container`, tracks boot state (`isBooted()`/`markBooted()`), thin `make`/`has`/`bind`/`singleton` pass-through.
+- `app/Core/Config.php` — plugin-level metadata only (version, plugin file/dir, text domain) — explicitly not the module-level `config/*.php` files in `docs/04-Folder-Structure.md`, none of which have an owning module yet.
+- `app/Core/Hooks.php` — registrar wrapping `add_action`/`add_filter` with bookkeeping, so later Providers register hooks declaratively through one testable object.
+- `app/Core/Bootstrap.php` — idempotent boot sequence: marks the `Application` booted and fires a new `oxy_ai_ready` action (the "Plugin Ready" step of the documented Bootstrap Sequence). "Register Services"/"Load Core Components"/"Load Enabled Modules" have nothing to do yet — no Providers or Modules exist.
+- `app/Core/Kernel.php` — the only class that decides *when* the plugin boots: registers on WordPress's `plugins_loaded` and delegates to `Bootstrap` when fired.
+- `app/Core/Plugin.php` — top-level object instantiated by the bootstrap file; wires Container → Application → Bootstrap → Kernel; `activate()` genuinely uses Phase 1's `OptionsRepository` to record `installed_at`/`version` (exactly the narrow use case that repository's own docblock describes); `deactivate()` is an intentionally empty, real (not placeholder) no-op since nothing exists yet to tear down.
+- `app/Providers/ServiceProvider.php` — abstract base class (`register()`/`boot()`) every future Core/Module provider extends.
+- 8 new test files, 24 new test methods (`ContainerTest` 5, `ApplicationTest` 3, `ConfigTest` 3, `HooksTest` 2, `BootstrapTest` 2, `KernelTest` 2, `PluginTest` 5, `ServiceProviderTest` 2).
+
+### Checks — all run for real, all passing
+
+`composer validate` (valid), `composer test` → `OK (78 tests, 89 assertions)` (54 from Phase 1 + 24 new), PHPStan level 8 (now also scoped to the two root plugin files) → `[OK] No errors`, PHPCS (hybrid ruleset, now also linting `oxy-ai-readiness.php`/`uninstall.php`) → 0 errors/0 warnings across 33 files, `composer test:integration` → 0 tests (still no integration tests, unchanged from Phase 1), `composer quality` → all green.
+
+Three tests initially came back "risky" (Mockery/Brain-Monkey expectations verified in `tearDown()` aren't PHPUnit-native assertions, so PHPUnit correctly flags a test with none of its own). Fixed by either asserting against Brain Monkey's real (simulated, not mocked) hook storage where possible (`Actions\has('plugins_loaded')`), or calling `expectNotToPerformAssertions()` where a WordPress function genuinely has no real-storage simulation (`get_option`/`update_option`) and only a Mockery expectation applies — not by adding a hollow `assertTrue(true)`.
+
+One PHPCS finding required a narrowly-scoped ruleset exclusion, same pattern as Phase 1's three: `oxy-ai-readiness.php` trips `PSR1.Files.SideEffects.FoundWithSymbols` because every WordPress plugin main file necessarily both defines constants and executes activation-hook side effects — scoped to that one file only, not a blanket disable (see `DECISIONS.md`).
+
+**Known gap, flagged not hidden (same honesty as Phase 1's coverage-driver gap):** "plugin activates cleanly on a clean WordPress install" — the original Phase 1 draft's exit criterion — still cannot be verified in this sandbox. There is no real WordPress install here, only Brain Monkey's simulated hook functions. Everything unit-testable was verified for real; the true activation smoke test remains open until run against an actual WP instance.
+
+### Explicitly out of scope for Phase 2 (deferred)
+- `Core/Scheduler.php`, `Core/ModuleRegistry.php`, `Core/StandardsRegistry.php` (Queue/Scheduler infra and the Module/Standard SDK belong to later phases, not scaffolding)
+- Any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Any Module, any Standard, any REST route, any admin UI
+- `package.json` / frontend tooling

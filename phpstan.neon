@@ -2,6 +2,8 @@ parameters:
     level: 8
     paths:
         - app
+        - oxy-ai-readiness.php
+        - uninstall.php
     excludePaths:
         - app/Modules/*
     treatPhpDocTypesAsCertain: false

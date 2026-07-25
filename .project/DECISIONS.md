@@ -60,3 +60,45 @@ Canonical, ongoing decision log starting at Phase 1. Phase 0/0.5 decisions (incl
 **Context:** `phpunit.xml.dist` declares both `Unit` and `Integration` testsuites, but only `tests/Unit/` existed — PHPUnit fails at configuration-parse time (before running anything) if any declared testsuite's directory is missing, which broke every invocation that didn't pass `--testsuite=Unit` explicitly, including the plain `phpunit`/`composer test` commands used for validation.
 **Rationale:** Writing integration tests is out of scope for Phase 1 ("do not implement Phase 2 or later" / the user's explicit "do not start Phase 2" instruction this session) — the goal was only to make the existing config internally consistent, not to add new test coverage.
 **Affects:** `tests/Integration/.gitkeep` (new, empty). `composer.json`'s existing `test:integration` script (`phpunit --testsuite=Integration`) will now run cleanly (0 tests) instead of erroring, once real integration tests are added in a later phase.
+
+## Phase 2 — Foundational Scaffolding — 2026-07-25
+
+**Decision:** Phase 2 is scoped to the deferred "Foundational Scaffolding" (bootstrap file, Container, `Core/`, activation lifecycle) rather than the originally-drafted Phase 2 ("Database & shared infrastructure": migrations, tables, Settings Manager, Logger, Cache Service, Queue).
+**Context:** The draft plan (`06-Phase-Plan.md`) assumed its own Phase 1 (scaffolding) would already exist before its Phase 2 (DB infra) started. The user's actual, approved Phase 1 was narrowed to only the Repository layer, so the draft's Phase 2 had an unmet prerequisite — no Container/bootstrap exists yet for a migration runner or Settings Manager to register into, per `docs/02-Architecture.md`'s Bootstrap Sequence (Autoloader → Constants → Service Container → Register Services → Core Components → ...).
+**Rationale:** Surfaced via `AskUserQuestion` rather than silently picking an interpretation, since either reading (bootstrap-only vs. bootstrap+DB-infra-combined) commits real, hard-to-cheaply-undo scope. User chose bootstrap/Container/Core only, explicitly excluding DB tables/migrations/Settings Manager/Logger/Cache Service/Queue.
+**Affects:** Everything built this phase; `Core/Scheduler.php`, `Core/ModuleRegistry.php`, `Core/StandardsRegistry.php`, and all DB-infra work are deferred to a future phase, not this one.
+
+**Decision:** `ServiceProvider` (abstract base class) lives at `app/Providers/ServiceProvider.php` (namespace `OxyAI\Providers`), not `app/Core/Container/ServiceProvider.php` (namespace `OxyAI\Core\Container`) as `docs/29-Developer-Guide.md`'s worked example literally imports it.
+**Context:** That example's `use OxyAI\Core\Container\ServiceProvider;` requires `Container` to be a namespace (a folder), which conflicts with `docs/04-Folder-Structure.md`'s canonical Core/ list, where `Container.php` is a flat file (a class, not a folder) — PSR-4 cannot have a class and a namespace share one name.
+**Rationale:** Treated the dev-guide's import as illustrative rather than literal, same precedent as Phase 1's `RepositoryInterface` marker-interface decision. Placed the base class at `app/Providers/ServiceProvider.php` instead, which matches the already-documented top-level `Providers/` folder in `docs/04-Folder-Structure.md`'s App structure section — no new folder invented, no naming collision.
+**Affects:** `app/Providers/ServiceProvider.php`; the import path every future Core/Module service provider will use.
+
+**Decision:** `Container::bind()`/`singleton()` take zero-argument factory closures (`Closure(): mixed`), not `Closure(Container $c): mixed` auto-wiring closures.
+**Context:** Nothing bound into the Container this phase (currently just `Config::class`) needs the container to resolve its own dependencies — `Config` is constructed directly from plugin-file/version strings known at `Plugin::__construct()` time.
+**Rationale:** Building auto-wiring (passing the container into every factory, or reflection-based constructor resolution) with no real consumer yet would be exactly the kind of speculative, undemonstrated feature the project's engineering guidelines warn against. Deferred until a later phase's Provider actually needs the container to resolve a factory's own dependencies.
+**Affects:** `app/Core/Container.php`, `app/Core/Application.php`'s pass-through methods, and the signature every future `ServiceProvider::register()` call binds against — adding container-aware factories later is additive, not a breaking change.
+
+**Decision:** `Bootstrap::run()` fires a new `oxy_ai_ready` action after marking the `Application` booted, matching the `oxy_ai_` prefix convention `OptionsRepository` already established, rather than inventing an unprefixed or differently-named hook.
+**Context:** No hook-naming convention is specified anywhere in `docs/*` for the plugin's own lifecycle events (`docs/22-Plugin-SDK.md`'s "Hook System" only documents per-module before/after events like "Before Generation"/"After Generation"); `docs/29-Developer-Guide.md`'s Bootstrap Flow only names the step "Ready Event" without a literal hook name.
+**Rationale:** Reused the one naming convention that does exist in the codebase (`OptionsRepository::PREFIX = 'oxy_ai_'`) rather than inventing a new, unrelated convention, so a later phase's naming-convention doc (if one gets written) has one existing precedent to reconcile against, not two.
+**Affects:** `app/Core/Bootstrap.php`. Third-party code or later phases hooking into plugin readiness should use `oxy_ai_ready`.
+
+**Decision:** `Plugin::activate()` uses `OptionsRepository` to record `installed_at` (once) and `version` (every activation); `Plugin::deactivate()` is an intentionally empty method body.
+**Context:** CLAUDE.md's "do not store all data in WordPress options" restriction targets using `wp_options` as the general operational datastore (the whole `oxy_*` table schema); `OptionsRepository`'s own Phase 1 docblock explicitly names "installed version, activation timestamp" as its legitimate use case.
+**Rationale:** This is that exact, already-approved use case, not new scope — no `oxy_*` table exists yet for this to belong to instead. `deactivate()` has a real, WordPress-required callback registered (`register_deactivation_hook`) but a genuinely empty body: no scheduled events, transients, or caches exist yet to clear. An empty-but-honestly-empty method is not the same as placeholder code claiming to do something it doesn't.
+**Affects:** `app/Core/Plugin.php`.
+
+**Decision:** Added a narrowly file-scoped PHPCS exclusion: `PSR1.Files.SideEffects.FoundWithSymbols`, scoped to `oxy-ai-readiness.php` only.
+**Context:** The hybrid ruleset (PSR-12 base) flagged the plugin main file for both defining constants (`OXY_AI_READINESS_VERSION` etc.) and executing side effects (the `ABSPATH` guard, requiring the autoloader, registering activation hooks) in one file.
+**Rationale:** Every WordPress plugin bootstrap file necessarily does both — that is what the file is for; there is no PSR-1-compliant way to write one. Scoped by `exclude-pattern` to that one filename only (same narrow-exclusion pattern as Phase 1's three), not a project-wide sniff disable.
+**Affects:** `phpcs.xml`, `oxy-ai-readiness.php`.
+
+**Decision:** Extended `phpstan.neon`'s `paths` and `phpcs.xml`'s `<file>` list to include the two new root plugin files (`oxy-ai-readiness.php`, `uninstall.php`), which previously only covered `app/`/`tests/`.
+**Context:** Root-level plugin files didn't exist before this phase; static analysis/linting had nothing to scope to there.
+**Rationale:** Keeping the "0 errors, 0 warnings" bar meaningful requires covering every hand-authored PHP file, not just `app/`.
+**Affects:** `phpstan.neon`, `phpcs.xml`.
+
+**Decision:** Fixed three PHPUnit "risky" (no-assertions) warnings by using Brain Monkey's real simulated hook storage (`Actions\has()`) where one exists, and `expectNotToPerformAssertions()` where only a Mockery expectation applies (`get_option`/`update_option`, which Brain Monkey does not simulate for real) — not by adding a hollow `self::assertTrue(true)`.
+**Context:** `Plugin::run()`/`activate()`/`deactivate()` are void methods; tests that only set Mockery/Brain-Monkey expectations (verified in `tearDown()`) register zero assertions from PHPUnit's own point of view, so PHPUnit correctly flags them as risky.
+**Rationale:** `expectNotToPerformAssertions()` is PHPUnit's documented mechanism for exactly this case — a test whose correctness is verified by a non-PHPUnit assertion library — and is more honest than a placeholder assertion that verifies nothing.
+**Affects:** `tests/Unit/Core/PluginTest.php`.

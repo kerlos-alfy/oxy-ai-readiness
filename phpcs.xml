@@ -15,6 +15,8 @@
 
     <file>app</file>
     <file>tests</file>
+    <file>oxy-ai-readiness.php</file>
+    <file>uninstall.php</file>
 
     <arg name="basepath" value="."/>
     <arg name="extensions" value="php"/>
@@ -58,6 +60,16 @@
         stays enforced.
         -->
         <exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+    </rule>
+
+    <!--
+    Every WordPress plugin main file necessarily both defines constants
+    (OXY_AI_READINESS_VERSION etc.) and executes side effects (the
+    ABSPATH guard, requiring the autoloader, registering hooks) — that
+    is what a plugin bootstrap file is for. Scoped to this one file only.
+    -->
+    <rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
+        <exclude-pattern>oxy-ai-readiness\.php$</exclude-pattern>
     </rule>
     <rule ref="WordPress.WP"/>
     <rule ref="WordPress.DB"/>
