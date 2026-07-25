@@ -416,3 +416,33 @@ That doc's `Admin/{Dashboard,Pages,Settings,Widgets,Components,Assets,Views,Cont
 - `npm run dev`'s watch-mode build is the only "dev server" story — no HMR dev server/proxy, since PHP always serves whatever is currently in `dist/`
 - Fixing the 28 pre-existing `npm audit` advisories in the dev toolchain — deferred to a dedicated dependency pass, not blocking this phase's exit criterion
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue, Monitoring/Reporting engines, MCP/Agent Skills/API Catalog/OAuth Discovery modules
+
+## Phase 13 — Monitoring + Reporting Engines — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-13`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 13: "Change detection, notifications, report generation/export/sharing," depends on Phase 9 (Audit) and Phase 7 (Scoring), exit criterion "A simulated resource change triggers revalidation + notification; a report exports in at least one format."
+
+### What was built
+
+**Monitoring Engine** (`app/Services/MonitoringService.php`): per docs/20-Monitoring-Engine.md's pipeline (Scheduler → Resource Scanner → Change Detection → Validation Engine → Impact Analysis → Notifications), with no `Core/Scheduler.php` to call it automatically — `start()` arms monitoring and takes a baseline fingerprint of every currently-discovered resource (its Discovery Map metadata plus its generated content, when a Generator is registered for its module); `scan()` (manually triggered via REST, standing in for what a real Scheduler would call on a timer) diffs the current state against that baseline, revalidates anything that changed via the existing `ValidationService`, and fires `oxy_ai_resource_changed`/`oxy_ai_notification_sent` — this is literally the exit criterion's "simulated resource change triggers revalidation + notification," exercised directly by tests that mock a `DiscoveryInterface`/`GeneratorInterface` returning different output across two calls. `ChangeType` (Created/Modified/Deleted) and `NotificationPriority` (Critical/High/Medium/Low/Informational, only Critical/Medium/Informational currently reachable) are real enums scoped to what's genuinely detectable without live HTTP/SSL checks or a severity axis on `ValidationResult` — same "real enum, not every case distinguished yet" precedent as Phase 9's `ScanType`. `MonitoringController` exposes `/monitoring`, `/monitoring/status`, `/monitoring/events`, `/monitoring/start`, `/monitoring/stop`, `/monitoring/reset`, and `/monitoring/scan` (the last one not in docs/20's own REST list, added under its own name for the same reason Phase 6 added `/generation/rollback`).
+
+**Reporting Engine** (`app/Services/ReportService.php`): per docs/21-Reporting-Engine.md's pipeline (Data Sources → Normalize → Aggregate → Analyze → Generate → Export) — `generate()` runs a real `AuditService` scan, derives `Recommendation`s from its results via the existing `RecommendationService`, and folds in whatever `MonitoringService` has observed, producing a `Report` DTO (docs' own "Technical Report" shape). `export()` renders that report as either JSON (`toArray()` verbatim) or Markdown (a real, readable rendering with Validation Results/Recommendations/Monitoring Events sections) — both genuinely implemented, not stubs; two formats comfortably satisfies "exports in at least one format." `ReportController` exposes `GET /reports`, `POST /reports/generate`, `POST /reports/export`.
+
+Both services registered as `CoreServiceProvider` singletons; both controllers wired into `routes/api.php`. 4 new test files (`MonitoringServiceTest` — 8 methods covering no-baseline/created/modified/deleted/content-only-change/stop/reset; `MonitoringControllerTest` — 8; `ReportServiceTest` — 5; `ReportControllerTest` — 8) plus `CoreServiceProviderTest` (+2) and `ApiRoutesTest` (extended) updated.
+
+### Checks — all run for real, clean on the first pass
+
+`composer validate` (valid), `composer test` → `OK (369 tests, 701 assertions)` (up from 338/622), PHPStan level 8 → `[OK] No errors` across 95 files (up from 86), PHPCS hybrid ruleset → 0 errors/0 warnings across 166 files, `composer test:integration` → 0 tests (unchanged, pre-existing since Phase 1 — not part of `composer quality`), `composer quality` → all green. `npm run quality` re-verified green (untouched this phase).
+
+### Explicitly out of scope for Phase 13 (deferred)
+
+- `Core/Scheduler.php` — Monitoring's `scan()` still needs a manual/REST trigger; a real Scheduler would call it on a timer once built
+- `/monitoring/history` — without persisted storage it would return exactly what `/monitoring/events` already does; not implemented rather than faking a distinction
+- `/reports/history`, `/reports/templates`, `/reports/share`, `DELETE /reports/cache` — need persisted multi-report storage, report-type templates, external sharing/delivery, and a caching layer, none of which exist
+- Executive/Agency/White-Label/Compliance/Security/Performance report types — need business-summary copywriting, client branding, and compliance-framework mappings this project has no source of
+- Slack/Discord/Teams/Telegram/Webhook/Push notifications, PDF/Excel/CSV/XML/ZIP/HTML export formats — need external libraries or delivery credentials this project doesn't have
+- `ChangeType::Broken/Deprecated/Moved/Redirected/Disabled/Expired`, `NotificationPriority::High/Low` — need live HTTP-following/SSL checks and a severity axis on `ValidationResult` that don't exist yet
+- Any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue, MCP/Agent Skills/API Catalog/OAuth Discovery modules

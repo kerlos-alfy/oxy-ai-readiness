@@ -16,7 +16,9 @@ use OxyAI\Services\AuditService;
 use OxyAI\Services\AutoFixService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\MonitoringService;
 use OxyAI\Services\RecommendationService;
+use OxyAI\Services\ReportService;
 use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 
@@ -82,6 +84,22 @@ final class CoreServiceProvider extends ServiceProvider
                 $this->app->make(GenerationService::class),
                 $this->app->make(ValidationService::class),
                 $this->app->make(DiscoveryService::class)
+            );
+        });
+
+        $this->app->singleton(MonitoringService::class, function (): MonitoringService {
+            return new MonitoringService(
+                $this->app->make(DiscoveryService::class),
+                $this->app->make(ValidationService::class),
+                $this->app->make(GenerationService::class)
+            );
+        });
+
+        $this->app->singleton(ReportService::class, function (): ReportService {
+            return new ReportService(
+                $this->app->make(AuditService::class),
+                $this->app->make(RecommendationService::class),
+                $this->app->make(MonitoringService::class)
             );
         });
     }

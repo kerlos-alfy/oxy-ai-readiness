@@ -484,3 +484,36 @@ PHP: **338 tests, 622 assertions total repo-wide** (up from 329/612 at the end o
 Frontend (run for the first time this phase): `npm run lint` (ESLint, 0 problems), `npm run typecheck` (`tsc --noEmit`, 0 errors), `npm run test` (Jest, 4 suites/6 tests, including a jest-axe a11y assertion), `npm run build` (`tsc --noEmit && vite build`, confirmed producing `dist/.vite/manifest.json` in the exact shape `AdminServiceProvider` reads).
 
 **Totals as of end of Phase 12:** adds 1 `app/` source file (`AdminServiceProvider`) + 1 new PHP test file (9 tests) to the Phase 11 count, plus the entire frontend (SPA source + tooling/config) landed and verified working for the first time. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Monitoring/Reporting engines, or MCP/Agent Skills/API Catalog/OAuth modules exist yet — still deferred to later phases. No nav/screen exists yet for any module without a REST backend (API Catalog, MCP, Agent Skills, Commerce, Logs, Settings, About).
+
+## Production source (`app/`) — Phase 13
+| File | Purpose |
+|---|---|
+| `app/DTO/ChangeType.php` | Created/Modified/Deleted enum (3 of docs/20's 9 documented cases — the rest need live HTTP/SSL/lifecycle infra this project doesn't have) |
+| `app/DTO/NotificationPriority.php` | Critical/High/Medium/Low/Informational enum (all 5 documented cases; only Critical/Medium/Informational currently reachable — no severity axis exists on `ValidationResult`) |
+| `app/DTO/MonitoringEvent.php` | resourceId/changeType/results/priority/message/detectedAt + `toArray()` |
+| `app/DTO/ExportFormat.php` | Json/Markdown enum (2 of docs/21's 8 documented formats — both genuinely implemented) |
+| `app/DTO/Report.php` | id/generatedAt/auditReport/recommendations/monitoringEvents + `toArray()` — docs/21's own "Technical Report" shape |
+| `app/Services/MonitoringService.php` | The Monitoring Engine: `start()`/`stop()`/`reset()` arm state; `scan()` diffs a Discovery-metadata-plus-generated-content fingerprint per resource against the last-known baseline, revalidates anything changed via `ValidationService`, fires `oxy_ai_resource_changed`/`oxy_ai_notification_sent` |
+| `app/Services/ReportService.php` | The Reporting Engine: `generate()` aggregates a fresh `AuditService` scan + derived `Recommendation`s + current `MonitoringService` events into a `Report`; `export()` renders it as JSON or Markdown |
+| `app/Http/Controllers/MonitoringController.php` | `GET /monitoring`, `/monitoring/status`, `/monitoring/events`; `POST /monitoring/start`, `/stop`, `/reset`, `/scan` |
+| `app/Http/Controllers/ReportController.php` | `GET /reports`; `POST /reports/generate`, `/reports/export` |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/CoreServiceProvider.php` | Also binds `MonitoringService`/`ReportService` as Container singletons |
+| `routes/api.php` | Adds `GET /monitoring`, `/monitoring/status`, `/monitoring/events`, `GET /reports`; `POST /monitoring/start`, `/stop`, `/reset`, `/scan`, `POST /reports/generate`, `/reports/export` |
+
+## Tests (`tests/`) — Phase 13
+| File | Tests |
+|---|---|
+| `tests/Unit/Services/MonitoringServiceTest.php` | 8 — no-baseline no-op, no-change, modified (+ revalidation/notification), created, deleted (+ critical priority), content-only change via a registered Generator, stop, reset |
+| `tests/Unit/Http/Controllers/MonitoringControllerTest.php` | 8 |
+| `tests/Unit/Services/ReportServiceTest.php` | 5 — aggregation, default scan type, null before first generate, JSON round-trip, Markdown section coverage |
+| `tests/Unit/Http/Controllers/ReportControllerTest.php` | 8 |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +2 (MonitoringService, ReportService singletons) |
+| `tests/Unit/Routes/ApiRoutesTest.php` | extended to cover the 11 new routes |
+
+**369 tests, 701 assertions total repo-wide** (up from 338/622 at the end of Phase 12), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 95 files analysed — up from 86), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 166 files) — all clean on the first run.
+
+**Totals as of end of Phase 13:** adds 5 DTOs + 2 Services + 2 Http Controllers (9 new `app/` source files) + 4 new test files (2 existing files extended) to the Phase 12 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, or MCP/Agent Skills/API Catalog/OAuth Discovery modules exist yet — still deferred to later phases.

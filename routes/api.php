@@ -17,7 +17,9 @@ use OxyAI\Http\Controllers\GenerationController;
 use OxyAI\Http\Controllers\HeadersController;
 use OxyAI\Http\Controllers\LlmsController;
 use OxyAI\Http\Controllers\MarkdownController;
+use OxyAI\Http\Controllers\MonitoringController;
 use OxyAI\Http\Controllers\RecommendationController;
+use OxyAI\Http\Controllers\ReportController;
 use OxyAI\Http\Controllers\RobotsController;
 use OxyAI\Http\Controllers\ScoreController;
 use OxyAI\Http\Controllers\ValidationController;
@@ -25,7 +27,9 @@ use OxyAI\Services\AuditService;
 use OxyAI\Services\AutoFixService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\MonitoringService;
 use OxyAI\Services\RecommendationService;
+use OxyAI\Services\ReportService;
 use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 
@@ -65,7 +69,14 @@ use OxyAI\Services\ValidationService;
  * happens automatically inside `run`, not as a separate `/verify` step.
  * LLMS/Headers/Markdown/Content Signals (Phase 11) each mirror the
  * Robots pattern exactly — thin facades over the shared engines, one
- * GET/preview/save/validate/reset set per module.
+ * GET/preview/save/validate/reset set per module. Monitoring:
+ * `/monitoring/scan` is not in docs/20's own REST list, added under its
+ * own accurate name since no Scheduler exists yet to trigger it
+ * automatically (same precedent as `/generation/rollback`);
+ * `/monitoring/history` is not implemented (see routes' own controller
+ * docblock). Reporting: `/reports/history`, `/reports/templates`,
+ * `/reports/share`, `DELETE /reports/cache` (docs/21's own REST list)
+ * are not implemented — see `ReportController`'s docblock.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -426,5 +437,69 @@ return static function (Application $app): void {
                 'type' => 'string',
             ],
         ],
+    ]);
+
+    $monitoringController = new MonitoringController($app->make(MonitoringService::class));
+
+    register_rest_route('oxy-ai/v1', '/monitoring', [
+        'methods' => 'GET',
+        'callback' => [$monitoringController, 'index'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/monitoring/status', [
+        'methods' => 'GET',
+        'callback' => [$monitoringController, 'status'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/monitoring/events', [
+        'methods' => 'GET',
+        'callback' => [$monitoringController, 'events'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/monitoring/start', [
+        'methods' => 'POST',
+        'callback' => [$monitoringController, 'start'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/monitoring/stop', [
+        'methods' => 'POST',
+        'callback' => [$monitoringController, 'stop'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/monitoring/reset', [
+        'methods' => 'POST',
+        'callback' => [$monitoringController, 'reset'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/monitoring/scan', [
+        'methods' => 'POST',
+        'callback' => [$monitoringController, 'scan'],
+        'permission_callback' => [$monitoringController, 'authorize'],
+    ]);
+
+    $reportController = new ReportController($app->make(ReportService::class));
+
+    register_rest_route('oxy-ai/v1', '/reports', [
+        'methods' => 'GET',
+        'callback' => [$reportController, 'index'],
+        'permission_callback' => [$reportController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/reports/generate', [
+        'methods' => 'POST',
+        'callback' => [$reportController, 'generate'],
+        'permission_callback' => [$reportController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/reports/export', [
+        'methods' => 'POST',
+        'callback' => [$reportController, 'export'],
+        'permission_callback' => [$reportController, 'authorize'],
     ]);
 };

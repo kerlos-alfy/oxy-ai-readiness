@@ -14,7 +14,9 @@ use OxyAI\Services\AuditService;
 use OxyAI\Services\AutoFixService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\MonitoringService;
 use OxyAI\Services\RecommendationService;
+use OxyAI\Services\ReportService;
 use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 use OxyAI\Tests\Unit\TestCase;
@@ -113,5 +115,29 @@ final class CoreServiceProviderTest extends TestCase
 
         self::assertInstanceOf(AutoFixService::class, $app->make(AutoFixService::class));
         self::assertSame($app->make(AutoFixService::class), $app->make(AutoFixService::class));
+    }
+
+    public function test_register_binds_monitoring_service_as_a_singleton(): void
+    {
+        $app = new Application(new Container());
+        $app->singleton(Config::class, static fn (): Config => new Config('0.1.0', '/plugin.php'));
+
+        $provider = new CoreServiceProvider($app);
+        $provider->register();
+
+        self::assertInstanceOf(MonitoringService::class, $app->make(MonitoringService::class));
+        self::assertSame($app->make(MonitoringService::class), $app->make(MonitoringService::class));
+    }
+
+    public function test_register_binds_report_service_as_a_singleton(): void
+    {
+        $app = new Application(new Container());
+        $app->singleton(Config::class, static fn (): Config => new Config('0.1.0', '/plugin.php'));
+
+        $provider = new CoreServiceProvider($app);
+        $provider->register();
+
+        self::assertInstanceOf(ReportService::class, $app->make(ReportService::class));
+        self::assertSame($app->make(ReportService::class), $app->make(ReportService::class));
     }
 }

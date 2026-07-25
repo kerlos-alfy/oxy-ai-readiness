@@ -12,7 +12,9 @@ use OxyAI\Services\AuditService;
 use OxyAI\Services\AutoFixService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
+use OxyAI\Services\MonitoringService;
 use OxyAI\Services\RecommendationService;
+use OxyAI\Services\ReportService;
 use OxyAI\Services\ScoringService;
 use OxyAI\Services\ValidationService;
 use OxyAI\Tests\Unit\Support\InMemoryFilesystem;
@@ -50,6 +52,20 @@ final class ApiRoutesTest extends TestCase
                 $app->make(DiscoveryService::class)
             );
         });
+        $app->singleton(MonitoringService::class, static function () use ($app): MonitoringService {
+            return new MonitoringService(
+                $app->make(DiscoveryService::class),
+                $app->make(ValidationService::class),
+                $app->make(GenerationService::class)
+            );
+        });
+        $app->singleton(ReportService::class, static function () use ($app): ReportService {
+            return new ReportService(
+                $app->make(AuditService::class),
+                $app->make(RecommendationService::class),
+                $app->make(MonitoringService::class)
+            );
+        });
 
         $moduleSlugs = ['robots', 'llms', 'headers', 'markdown', 'content-signals'];
         $moduleGetRoutes = [];
@@ -67,10 +83,13 @@ final class ApiRoutesTest extends TestCase
             '/discovery', '/discovery/map', '/discovery/resources',
             '/validation', '/generation', '/generation/preview', '/score',
             '/audit', '/recommendations', '/autofix',
+            '/monitoring', '/monitoring/status', '/monitoring/events', '/reports',
         ], $moduleGetRoutes);
         $expectedPostRoutes = array_merge([
             '/validation/run', '/generation/publish', '/generation/rollback',
             '/audit/start', '/recommendations/generate', '/autofix/run', '/autofix/rollback',
+            '/monitoring/start', '/monitoring/stop', '/monitoring/reset', '/monitoring/scan',
+            '/reports/generate', '/reports/export',
         ], $modulePostRoutes);
 
         Functions\expect('register_rest_route')
