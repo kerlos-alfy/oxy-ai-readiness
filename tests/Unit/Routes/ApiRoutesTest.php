@@ -8,6 +8,7 @@ use Brain\Monkey\Functions;
 use OxyAI\Core\Application;
 use OxyAI\Core\Container;
 use OxyAI\Repositories\FileRepository;
+use OxyAI\Services\AuditService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
 use OxyAI\Services\ScoringService;
@@ -30,15 +31,22 @@ final class ApiRoutesTest extends TestCase
             );
         });
         $app->singleton(ScoringService::class, static fn (): ScoringService => new ScoringService());
+        $app->singleton(AuditService::class, static function () use ($app): AuditService {
+            return new AuditService(
+                $app->make(DiscoveryService::class),
+                $app->make(ValidationService::class),
+                $app->make(ScoringService::class)
+            );
+        });
 
         $expectedGetRoutes = [
             '/discovery', '/discovery/map', '/discovery/resources',
             '/validation', '/generation', '/generation/preview', '/score',
-            '/robots', '/robots/preview',
+            '/robots', '/robots/preview', '/audit',
         ];
         $expectedPostRoutes = [
             '/validation/run', '/generation/publish', '/generation/rollback',
-            '/robots/save', '/robots/validate', '/robots/reset',
+            '/robots/save', '/robots/validate', '/robots/reset', '/audit/start',
         ];
 
         Functions\expect('register_rest_route')

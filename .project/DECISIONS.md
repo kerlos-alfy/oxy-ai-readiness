@@ -259,3 +259,20 @@ Canonical, ongoing decision log starting at Phase 1. Phase 0/0.5 decisions (incl
 **Context:** The roadmap row explicitly frames this phase as proof that the shared engines "generalize" beyond the internal Probe module to a real feature.
 **Rationale:** Duplicating engine logic inside `RobotsController` (e.g., re-implementing publish/rollback there) would defeat the entire point of building centralized engines in Phases 4–7 — the Robots-specific REST surface exists only to expose robots-domain-shaped routes and parameter names, not to reimplement anything.
 **Affects:** `app/Http/Controllers/RobotsController.php`.
+
+## Phase 9 — Audit Engine orchestration — 2026-07-25
+
+**Decision:** No new "Rule" interface/abstraction was built distinct from the existing `ValidatorInterface`/`ValidationService`. `AuditService::scan()` treats every registered Validator as the "rule" docs/06-Audit-Engine.md describes.
+**Context:** docs/06's "Rule Engine" section says "Every check is a Rule... independent... returns PASS/WARNING/FAIL/INFO/SKIPPED" — a description that already matches `ValidatorInterface`/`ValidationResult` (Phase 5) exactly, field for field.
+**Rationale:** Building a second `RuleInterface` alongside the already-existing `ValidatorInterface` would be two interfaces doing the identical job — the same category of premature-abstraction risk Phase 7 avoided by not building a `ScoreProviderInterface`. A "rule" in this codebase already is a registered Validator; the Audit Engine's actual job this phase is orchestration (tie Discovery+Validation+Scoring together into one report), not re-defining what a rule is.
+**Affects:** `app/Services/AuditService.php`. If a future Audit Engine enhancement needs metadata a plain Validator can't carry (docs/06's fuller Rule Object: Priority, Estimated Fix Time, Estimated AI Impact, Dependencies), that's the point to introduce a richer rule wrapper — not before a real use needs it.
+
+**Decision:** `ScanType::Deep` and `ScanType::Developer` are real, selectable enum cases that currently behave identically to `Full` (both force a fresh Discovery pass and validate everything found).
+**Context:** docs/06 describes Deep as "Includes API, Performance, Security, Headers, Future Standards" and Developer as "Verbose, JSON Output, Logs" — but no Headers/Performance/Security-specific scanner modules exist yet (those are later-phase Modules), and no Logger service exists yet for "verbose logs."
+**Rationale:** Rather than omit these two documented scan types entirely (which would mean changing `AuditService`'s public API again once those scanners exist) or fabricate fake differentiated behavior now, they're included as real values with honest, currently-identical-to-Full behavior. `ScanType::Quick` is the one genuinely different mode already implementable (skips forcing a fresh Discovery pass), which is the actual behavioral distinction this phase's engine set can support.
+**Affects:** `app/DTO/ScanType.php`, `app/Services/AuditService.php`. Future Header/Performance/Security modules should register conditionally based on `ScanType` once that distinction has real scanners to gate.
+
+**Decision:** `AuditController` does not implement `/audit/fix` or `/audit/verify` (both named in docs/06's own REST API list).
+**Context:** Those two routes are the AutoFix Engine's REST surface (docs/06's own "Auto Fix Engine" section: Issue → Validate → Backup → Apply Fix → Verify → Success workflow) — a distinct engine the roadmap places in a later phase (10).
+**Rationale:** Consistent with every prior phase's discipline: build the routes the current phase's exit criterion needs (`Full/Quick scan... returns a structured report`), not every route a doc lists for a different, not-yet-built engine.
+**Affects:** `app/Http/Controllers/AuditController.php`, `routes/api.php`.

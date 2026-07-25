@@ -12,6 +12,7 @@ namespace OxyAI\Core;
 
 use OxyAI\Providers\ServiceProvider;
 use OxyAI\Repositories\FileRepository;
+use OxyAI\Services\AuditService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
 use OxyAI\Services\ScoringService;
@@ -61,5 +62,13 @@ final class CoreServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(ScoringService::class, static fn (): ScoringService => new ScoringService());
+
+        $this->app->singleton(AuditService::class, function (): AuditService {
+            return new AuditService(
+                $this->app->make(DiscoveryService::class),
+                $this->app->make(ValidationService::class),
+                $this->app->make(ScoringService::class)
+            );
+        });
     }
 }

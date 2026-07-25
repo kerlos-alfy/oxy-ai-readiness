@@ -292,3 +292,31 @@ One narrow PHPCS false-positive fixed with an inline suppression, not a ruleset-
 - Custom capability registration (`manage_robots`) — reuses the same `manage_options` interim default
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
 - Monitoring/Reporting engines, any other real feature Module, any admin UI, `package.json`/frontend tooling
+
+## Phase 9 — Audit Engine orchestration — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-9`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 9: "Rule Engine, Scan Types (Quick/Full/Deep/Developer), `/audit/*` REST, ties Discovery+Validation+Scoring together at the audit level," exit criterion "Full/Quick scan executes within documented performance targets on a fixture site and returns a structured report."
+
+### What was built
+
+- `app/DTO/ScanType.php` — Quick/Full/Deep/Developer. Deep/Developer are real, selectable values but don't yet examine anything Full doesn't, since no Headers/Performance/Security-specific scanners exist (those need modules from later phases) — added now so `AuditService`'s public shape doesn't need to change once they do.
+- `app/DTO/AuditReport.php`, `app/Services/AuditService.php` — `scan(ScanType): AuditReport` is the orchestrator the roadmap row names ("ties Discovery+Validation+Scoring together at the audit level"): iterates every Discovery Map entry, validates each, scores the combined results, and packages a structured report (summary counts by status, the `ScoreResult`, duration, timestamp). Quick reuses the cached Discovery Map; Full/Deep/Developer force a fresh discovery pass (`DiscoveryService::reset()`) first.
+- `app/Http/Controllers/AuditController.php` + `routes/api.php`'s `GET /audit`/`POST /audit/start`. `/audit/fix` and `/audit/verify` (docs/06's own REST list) are not implemented — those belong to the AutoFix Engine, a later phase.
+- No new "Rule" abstraction was built distinct from the existing `ValidatorInterface` — a registered Validator already *is* a rule in every sense docs/06 describes (independent, returns PASS/WARNING/FAIL/etc.). Logged in `DECISIONS.md`.
+- 2 new test files + 2 extended existing ones. `AuditServiceTest` includes a data-provider test explicitly verifying every scan type finishes within docs/06's own documented performance ceiling (Quick <5s, Full <20s, Deep/Developer <60s) — trivially true against a fixture site, but a real, run-for-real check rather than an assumption.
+
+### Checks — all run for real
+
+`composer validate` (valid), `composer test` → `OK (220 tests, 368 assertions)` (up from 207/345), PHPStan level 8 → `[OK] No errors` across 63 files (up from 59), PHPCS hybrid ruleset → 0 errors/0 warnings across 106 files (two long-PHPDoc-line warnings fixed by wrapping), `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+### Explicitly out of scope for Phase 9 (deferred)
+- AutoFix (`/audit/fix`, `/audit/verify`) and the Recommendation Engine — later phases
+- Persisted audit history (`/audit/history`), Diff Engine, Notifications — no `oxy_*` table exists yet
+- Headers/Performance/Security/WordPress-environment-specific scan checks (docs/06's own Header/Content/Performance/Security/WordPress Checks sections) — need modules/scanners that don't exist yet; Deep/Developer scan types are real but currently equivalent to Full
+- Third-party custom rule registration (docs/06's `oxy_ai_register_rules` extensibility hook)
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
+- Any other real feature Module, any admin UI, `package.json`/frontend tooling

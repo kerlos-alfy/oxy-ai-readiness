@@ -352,3 +352,29 @@ Every file in the repository, grouped by origin. Updated at the end of each phas
 **207 tests, 345 assertions total repo-wide** (up from 185/292 at the end of Phase 7), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 59 files analysed — up from 54), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 100 files).
 
 **Totals as of end of Phase 8:** adds 1 DTO + 4 Module files + 1 Http Controller (6 new `app/` source files) + 6 new test files (1 existing file extended) to the Phase 7 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, any other real feature Module, or Monitoring/Reporting engine exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 9
+| File | Purpose |
+|---|---|
+| `app/DTO/ScanType.php` | Quick/Full/Deep/Developer enum |
+| `app/DTO/AuditReport.php` | scanType/results/summary/score/durationMs/startedAt + `toArray()` |
+| `app/Services/AuditService.php` | The Audit Engine: `scan(ScanType): AuditReport` — ties Discovery+Validation+Scoring together; Quick reuses the cached Discovery Map, Full/Deep/Developer force a fresh discovery pass first |
+| `app/Http/Controllers/AuditController.php` | `GET /audit` (last report), `POST /audit/start` (type param) |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/CoreServiceProvider.php` | Also binds `AuditService` as a Container singleton |
+| `routes/api.php` | Adds `GET /audit`, `POST /audit/start` |
+
+## Tests (`tests/`) — Phase 9
+| File | Tests |
+|---|---|
+| `tests/Unit/Services/AuditServiceTest.php` | 3 methods, 6 executed cases (one uses a 4-case data provider over every scan type's performance target) |
+| `tests/Unit/Http/Controllers/AuditControllerTest.php` | 6 |
+| `tests/Unit/Core/CoreServiceProviderTest.php` | +1 (AuditService singleton) |
+| `tests/Unit/Routes/ApiRoutesTest.php` | extended to cover the 2 new routes |
+
+**220 tests, 368 assertions total repo-wide** (up from 207/345 at the end of Phase 8), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 63 files analysed — up from 59), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 106 files).
+
+**Totals as of end of Phase 9:** adds 2 DTOs + 1 Service + 1 Http Controller (4 new `app/` source files) + 2 new test files (2 existing files extended) to the Phase 8 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Recommendation/AutoFix/Monitoring/Reporting engines, or any other real feature Module exist yet — still deferred to later phases.

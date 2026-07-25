@@ -9,11 +9,13 @@
 declare(strict_types=1);
 
 use OxyAI\Core\Application;
+use OxyAI\Http\Controllers\AuditController;
 use OxyAI\Http\Controllers\DiscoveryController;
 use OxyAI\Http\Controllers\GenerationController;
 use OxyAI\Http\Controllers\RobotsController;
 use OxyAI\Http\Controllers\ScoreController;
 use OxyAI\Http\Controllers\ValidationController;
+use OxyAI\Services\AuditService;
 use OxyAI\Services\DiscoveryService;
 use OxyAI\Services\GenerationService;
 use OxyAI\Services\ScoringService;
@@ -45,7 +47,9 @@ use OxyAI\Services\ValidationService;
  * generation/validation logic); `/robots/reset` maps to
  * `GenerationService::rollback()`, not the fuller version-history
  * restore docs/07-Robots-Spec.md describes — that needs persisted
- * settings/version storage this project hasn't built yet.
+ * settings/version storage this project hasn't built yet. Audit:
+ * `/audit/fix` and `/audit/verify` (docs/06's own REST list) are not
+ * implemented — those belong to the AutoFix Engine, a later phase.
  */
 return static function (Application $app): void {
     $discoveryController = new DiscoveryController($app->make(DiscoveryService::class));
@@ -181,5 +185,26 @@ return static function (Application $app): void {
         'methods' => 'POST',
         'callback' => [$robotsController, 'reset'],
         'permission_callback' => [$robotsController, 'authorize'],
+    ]);
+
+    $auditController = new AuditController($app->make(AuditService::class));
+
+    register_rest_route('oxy-ai/v1', '/audit', [
+        'methods' => 'GET',
+        'callback' => [$auditController, 'index'],
+        'permission_callback' => [$auditController, 'authorize'],
+    ]);
+
+    register_rest_route('oxy-ai/v1', '/audit/start', [
+        'methods' => 'POST',
+        'callback' => [$auditController, 'start'],
+        'permission_callback' => [$auditController, 'authorize'],
+        'args' => [
+            'type' => [
+                'required' => false,
+                'type' => 'string',
+                'default' => 'quick',
+            ],
+        ],
     ]);
 };
