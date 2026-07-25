@@ -379,3 +379,40 @@ Each module got the full Robots-shaped test suite: a snapshot test freezing exac
 - Custom capability registration (`manage_llms`, `manage_headers`, etc.) — all four reuse the same `manage_options` interim default
 - `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue
 - MCP/Agent Skills/API Catalog/OAuth Discovery modules (Phase 14), Monitoring/Reporting engines (Phase 13), any admin UI (Phase 12), `package.json`/frontend tooling
+
+## Phase 12 — Admin UI shell — 2026-07-25
+
+**Status: Complete, all checks run for real and passing. Committed, tagged `phase-12`, pushed autonomously.**
+
+### Scope
+
+`06-Phase-Plan.md` row 12: "React/TS SPA scaffold, design system tokens (03), Dashboard screen wired to REST built so far, Audit screen, module screens for Phase 8/11 modules," exit criterion "Dashboard answers 'how ready / what's broken / how to fix' using live API data; a11y smoke pass."
+
+### Starting state: a real, uncommitted frontend already existed
+
+A prior session had already built the full React/TS SPA (`package.json`, Vite/Tailwind/Jest/ESLint config, `assets/react/**` — App shell, Sidebar/Header layout, Dashboard/Audit/five module screens, `useApiGet`/`apiGet`/`apiPost` REST client, jest-axe a11y tests) but left every file untracked and uncommitted, with no `.project` record of the phase starting. Verified this wasn't placeholder work — Dashboard/Audit genuinely call `/score`, `/audit`, `/recommendations` live per docs/03-UI.md's three Dashboard Goal questions, with tests exercising real REST payloads via a `mockFetchRoutes` helper and asserting `axe(container)` has no violations. What was missing: the PHP side (`app/Admin/AdminServiceProvider`, referenced by name in the already-written `vite.config.ts` comment and `assets/react/Utils/api.ts`'s `window.oxyAiReadiness` docblock) that mounts the SPA into wp-admin — nothing wired the build into a real admin page yet.
+
+### What was built
+
+- `app/Admin/AdminServiceProvider.php` — registers one top-level wp-admin menu page (`manage_options`), whose body is only an empty `#oxy-ai-readiness-root` mount node; all in-page navigation between Dashboard/Audit/module screens is the SPA's own (`App.tsx`/`Sidebar.tsx`), not server-rendered PHP views. Reads Vite's build manifest (`dist/.vite/manifest.json`, confirmed by actually running `npx vite build`) through `FileRepository` so the enqueued, content-hashed filename is never hardcoded; falls back to an `admin_notices` error (not a fatal) if `dist/` hasn't been built yet. Adds `type="module"` to its own script tag via `script_loader_tag` (Vite emits an ES module, not a classic script). Localizes `window.oxyAiReadiness` (`restUrl`/`nonce`/`version`) exactly as `assets/react/Utils/api.ts` already declared it. Wired into `Plugin.php`'s provider list.
+- `tests/Unit/Admin/AdminServiceProviderTest.php` — 8 tests: hook registration, the `admin_menu` callback's exact `add_menu_page()` args, the enqueue callback's page-suffix guard, the missing-build notice path, the full enqueue+localize path (manifest served through an injected `FileRepository`/`InMemoryFilesystem`, no real filesystem or WordPress globals touched), `renderRoot()`/`renderMissingBuildNotice()` output (via `expectOutputString`, since `phpunit.xml.dist` sets `beStrictAboutOutputDuringTests`), and the `script_loader_tag` filter's handle-scoping. `AdminServiceProvider` takes an optional constructor-injected `FileRepository` (used only by tests) rather than a raw `global $wp_filesystem` — PHPCS's `WordPress.WP.GlobalVariablesOverride.Prohibited` correctly rejected the latter on a first pass.
+- Two real, pre-existing bugs in the uncommitted frontend scaffold fixed rather than worked around: `eslint-plugin-react-hooks@^4.6.2`'s peer dependency (`eslint@^3–8`) conflicted with the pinned `eslint@^9.9.0`, blocking `npm install` outright — bumped to `^5.0.0`, which supports eslint 9. `eslint.config.js` had no global environment (`browser`/`node`/`jest`/ambient DOM+JSX types) configured, so plain `eslint` failed with 25 `no-undef` false positives (`JSX`, `HTMLButtonElement`, `RequestInit`, `jest`, `global`, etc.) across nearly every file — disabled `no-undef` for `.ts`/`.tsx` files in favor of `tsc --noEmit` (already run clean), matching typescript-eslint's own documented guidance that ESLint's core `no-undef` doesn't understand TypeScript's ambient types. Also added the missing `@types/jest-axe` dev dependency (`tsc --noEmit` failed without it).
+
+### Checks — all run for real
+
+PHP: `composer validate` (valid), `composer test` → `OK (338 tests, 622 assertions)` (up from 329/612), PHPStan level 8 → `[OK] No errors` across 86 files (up from 85), PHPCS hybrid ruleset → 0 errors/0 warnings across 154 files, `composer test:integration` → 0 tests (unchanged), `composer quality` → all green.
+
+Frontend (run for the first time this phase — no prior `node_modules`): `npm install` (after the `eslint-plugin-react-hooks` fix), `npm run lint` (ESLint, 0 problems after the `no-undef` fix), `npm run typecheck` (`tsc --noEmit`, 0 errors after the `@types/jest-axe` fix), `npm run test` (Jest, 4 suites/6 tests passing, including jest-axe a11y assertions on Dashboard), `npm run build` (`tsc --noEmit && vite build`) — confirmed real, producing `dist/.vite/manifest.json` with the exact shape `AdminServiceProvider` expects. `npm audit` reports 28 existing transitive-dependency advisories (1 moderate/27 high) in the dev-only toolchain (eslint/jest/vite's own dependency trees) — not something a fix for this phase's scope should force-upgrade blind (`npm audit fix --force` can jump major versions unpredictably); left for a dedicated dependency-hardening pass. `package-lock.json` committed for reproducible installs.
+
+### A documented deviation from docs/04-Folder-Structure.md's aspirational `Admin/` layout
+
+That doc's `Admin/{Dashboard,Pages,Settings,Widgets,Components,Assets,Views,Controllers,Middleware}` breakdown describes per-page server-rendered PHP views — but the same document explicitly says (line 271) "There is no per-module Views/ or Assets/ folder. The admin UI is a single centralized React SPA." Since the SPA already built this phase owns all its own navigation/rendering, a single `app/Admin/AdminServiceProvider.php` is everything actually needed; the elaborate per-page folder breakdown doesn't apply to what a single-mount SPA needs. Treated as aspirational rather than literal, same precedent as every prior phase's documented deviations (RestServiceProvider's namespace, Headers owning no Standard, etc.) — logged in DECISIONS.md rather than built out unused.
+
+### Explicitly out of scope for Phase 12 (deferred)
+
+- Nav entries/screens for API Catalog, MCP, Agent Skills, Commerce, Logs, Settings, About (docs/03-UI.md's full Navigation list) — no REST backend exists for any of them yet (Phases 13–15); CLAUDE.md prohibits dashboard-only functionality without an API behind it
+- Every module screen's full aspirational feature set (Robots' visual crawler-table builder/import-export, LLMS live-URL preview, Markdown per-post-type settings, Headers table editor) — needs persisted settings/multi-row config this project's engines don't produce yet; the built `ModulePage` covers the REST surface that does exist (preview/publish/validate/reset)
+- Dark mode toggle, global search, notifications/toast system, Logs timeline, Settings screen — all docs/03-UI.md sections with no REST data source yet
+- `npm run dev`'s watch-mode build is the only "dev server" story — no HMR dev server/proxy, since PHP always serves whatever is currently in `dist/`
+- Fixing the 28 pre-existing `npm audit` advisories in the dev toolchain — deferred to a dedicated dependency pass, not blocking this phase's exit criterion
+- `Core/Scheduler.php`, any custom `oxy_*` database table, migration runner, Settings Manager, Logger service, Cache Service, Queue, Monitoring/Reporting engines, MCP/Agent Skills/API Catalog/OAuth Discovery modules

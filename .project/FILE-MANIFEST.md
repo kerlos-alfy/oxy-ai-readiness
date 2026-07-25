@@ -434,3 +434,53 @@ Each module has the same test shape as Robots: `{X}ModuleSnapshotTest` (1 — fr
 **329 tests, 612 assertions total repo-wide** (up from 249/424 at the end of Phase 10), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 85 files analysed — up from 70), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 151 files) — all clean on the first run.
 
 **Totals as of end of Phase 11:** adds 4 Modules (14 Module/Standard/ServiceProvider files) + 4 Http Controllers (18 new `app/` source files) + 19 new test files (1 existing file rewritten) to the Phase 10 count. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Monitoring/Reporting engines, MCP/Agent Skills/API Catalog/OAuth modules, or an admin UI exist yet — still deferred to later phases.
+
+## Production source (`app/`) — Phase 12
+| File | Purpose |
+|---|---|
+| `app/Admin/AdminServiceProvider.php` | Registers the single top-level wp-admin menu page, mounts the SPA's `#oxy-ai-readiness-root` node, enqueues the Vite-built bundle (reading `dist/.vite/manifest.json` via an injectable `FileRepository`, no hardcoded hashed filenames), marks its script tag `type="module"`, localizes `window.oxyAiReadiness` (`restUrl`/`nonce`/`version`), and falls back to an `admin_notices` error (not a fatal) if `dist/` hasn't been built yet |
+
+## Modified this phase
+| File | Change |
+|---|---|
+| `app/Core/Plugin.php` | Adds `AdminServiceProvider` to the provider list |
+
+## Frontend source (`assets/react/`) — Phase 12
+Already existed, built and left uncommitted by a prior session; verified real (not placeholder) and landed this phase alongside its config/tooling. One centralized React/TS SPA per docs/03-UI.md and docs/04-Folder-Structure.md's "no per-module Views/Assets, single centralized React SPA" note — not per-module server-rendered views.
+
+| File | Purpose |
+|---|---|
+| `assets/react/main.tsx` | Mounts `<App />` into `#oxy-ai-readiness-root` |
+| `assets/react/App.tsx` | Owns in-page navigation between Dashboard/Audit/module screens (no server-side routing) |
+| `assets/react/Layouts/{Sidebar,Header}.tsx` (+ `Sidebar.test.tsx`) | Nav (only entries with a real REST-backed screen — no API Catalog/MCP/Agent Skills/Commerce/Logs/Settings/About yet) + top header |
+| `assets/react/Dashboard/DashboardPage.tsx` (+ `.test.tsx`) | Answers docs/03's 3 Dashboard Goal questions from live `/score`, `/audit`, `/recommendations` — no mock data; `.test.tsx` asserts real payload handling and a jest-axe a11y pass |
+| `assets/react/Audit/AuditPage.tsx` | `/audit`, `POST /audit/start` — checklist + Run Audit |
+| `assets/react/Components/ModulePage.tsx` | One screen definition reused by all 5 Phase 8/11 modules (`/{slug}`, `/{slug}/preview`, `/{slug}/save`, `/{slug}/validate`, `/{slug}/reset`) |
+| `assets/react/{Robots,Llms,Markdown,Headers,ContentSignals}/*Page.tsx` | Thin `ModulePage` instantiations, one per module |
+| `assets/react/Components/{Badge,Button,Card,ScoreCircle}.tsx` (+ 2 `.test.tsx`) | Shared design-system primitives per docs/03-UI.md's color/radius/shadow tokens |
+| `assets/react/Hooks/useApi.ts`, `assets/react/Utils/api.ts` | `useApiGet` + `apiGet`/`apiPost` REST client reading `window.oxyAiReadiness` |
+| `assets/react/Types/api.ts` | TS interfaces mirroring PHP DTOs' `toArray()` shapes |
+| `assets/react/test/{mockFetch.ts,setupTests.ts,styleMock.cjs}` | Test fixtures/setup (jest-axe matcher, `window.oxyAiReadiness` stub, route-mocked fetch) |
+| `assets/react/index.css` | Tailwind entry |
+
+## Tooling/config — Phase 12
+| File | Purpose |
+|---|---|
+| `package.json`, `package-lock.json` | npm scripts (`lint`/`typecheck`/`test`/`build`/`quality`), pinned dependency versions |
+| `vite.config.ts` | Builds `assets/react/main.tsx` → `dist/`, `build.manifest: true` |
+| `tsconfig.json`, `tsconfig.jest.json` | Strict TS config for the app + a CommonJS variant for ts-jest |
+| `jest.config.cjs` | jsdom test environment, ts-jest transform, CSS module mock |
+| `eslint.config.js` | Flat ESLint config: TS/React/react-hooks/jsx-a11y, `no-undef` off for `.ts`/`.tsx` (superseded by `tsc --noEmit`) |
+| `tailwind.config.js`, `postcss.config.js` | docs/03-UI.md's color palette/radius/shadow tokens as Tailwind theme extensions |
+| `.prettierrc.json` | Formatting only, not enforced by `npm run quality` |
+
+## Tests (`tests/`) — Phase 12
+| File | Tests |
+|---|---|
+| `tests/Unit/Admin/AdminServiceProviderTest.php` | 9 — hook registration, `admin_menu`'s exact `add_menu_page()` args, enqueue page-suffix guard, missing-build notice path, full enqueue+localize path, `renderRoot`/`renderMissingBuildNotice` output, `script_loader_tag` handle-scoping |
+
+PHP: **338 tests, 622 assertions total repo-wide** (up from 329/612 at the end of Phase 11), confirmed by actually running PHPUnit, PHPStan (level 8, 0 errors, 86 files analysed — up from 85), and PHPCS (hybrid ruleset, 0 errors/0 warnings across 154 files).
+
+Frontend (run for the first time this phase): `npm run lint` (ESLint, 0 problems), `npm run typecheck` (`tsc --noEmit`, 0 errors), `npm run test` (Jest, 4 suites/6 tests, including a jest-axe a11y assertion), `npm run build` (`tsc --noEmit && vite build`, confirmed producing `dist/.vite/manifest.json` in the exact shape `AdminServiceProvider` reads).
+
+**Totals as of end of Phase 12:** adds 1 `app/` source file (`AdminServiceProvider`) + 1 new PHP test file (9 tests) to the Phase 11 count, plus the entire frontend (SPA source + tooling/config) landed and verified working for the first time. No `Core/Scheduler.php`, database tables/migrations, Settings Manager, Logger, Cache Service, Queue, Monitoring/Reporting engines, or MCP/Agent Skills/API Catalog/OAuth modules exist yet — still deferred to later phases. No nav/screen exists yet for any module without a REST backend (API Catalog, MCP, Agent Skills, Commerce, Logs, Settings, About).

@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 namespace OxyAI\Core;
 
+use OxyAI\Admin\AdminServiceProvider;
 use OxyAI\Modules\ContentSignals\ContentSignalsServiceProvider;
 use OxyAI\Modules\Headers\HeadersServiceProvider;
 use OxyAI\Modules\Llms\LlmsServiceProvider;
@@ -51,6 +52,7 @@ final class Plugin
             new HeadersServiceProvider($this->app),
             new MarkdownServiceProvider($this->app),
             new ContentSignalsServiceProvider($this->app),
+            new AdminServiceProvider($this->app),
         ];
 
         $bootstrap = new Bootstrap($this->app, $providers);
