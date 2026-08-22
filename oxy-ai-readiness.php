@@ -3,7 +3,7 @@
 /**
  * Plugin Name:       Oxy AI Readiness
  * Description:       Prepare your WordPress website for AI Search, AI Agents & the Future of the Web.
- * Version:           0.1.0
+ * Version:           1.0.0-alpha.5
  * Requires at least: 6.5
  * Requires PHP:      8.1
  * License:           Proprietary
@@ -12,7 +12,6 @@
  *
  * @package OxyAI
  */
-
 declare(strict_types=1);
 
 use OxyAI\Core\Plugin;
@@ -21,9 +20,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('OXY_AI_READINESS_VERSION', '0.1.0');
+define('OXY_AI_READINESS_VERSION', '1.0.0-alpha.5');
 define('OXY_AI_READINESS_FILE', __FILE__);
 define('OXY_AI_READINESS_MIN_PHP', '8.1');
+
+if (!defined('OXY_AI_UPDATE_MANIFEST_URL')) {
+    define('OXY_AI_UPDATE_MANIFEST_URL', 'https://updates.oxyadvertising.com/oxy-ai-readiness/manifest.json');
+}
 
 if (version_compare(PHP_VERSION, OXY_AI_READINESS_MIN_PHP, '<')) {
     add_action('admin_notices', static function (): void {
