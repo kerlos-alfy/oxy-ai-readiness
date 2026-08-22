@@ -12,6 +12,7 @@
  *
  * @package OxyAI
  */
+
 declare(strict_types=1);
 
 use OxyAI\Core\Plugin;
