@@ -26,22 +26,12 @@
 
     <rule ref="PSR12"/>
 
-    <!--
-    PHPUnit's snake_case descriptive test-method convention
-    (test_it_does_the_thing) is intentional and takes precedence over
-    PSR-1 camelCase for test methods specifically; app/ code still enforces
-    camelCase per docs/29-Developer-Guide.md.
-    -->
+    <!-- PHPUnit descriptive test methods intentionally use snake_case. -->
     <rule ref="PSR1.Methods.CamelCapsMethodName.NotCamelCaps">
         <exclude-pattern>*/tests/*</exclude-pattern>
     </rule>
 
-    <!--
-    tests/stubs/wp-core-stubs.php stands in for real WordPress core classes
-    (WP_User, WP_Post, WP_Filesystem_Base) and must mirror their actual
-    global, non-namespaced, snake_case-method API exactly rather than this
-    project's own naming convention.
-    -->
+    <!-- WordPress core stubs mirror the real global API. -->
     <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
         <exclude-pattern>tests/stubs/*</exclude-pattern>
     </rule>
@@ -53,25 +43,45 @@
     </rule>
 
     <rule ref="WordPress.Security">
-        <!--
-        Fires on sprintf() building InvalidArgumentException/RuntimeException
-        messages, which are never echoed to a browser — not the HTML/JS
-        output context this sniff targets. Genuine echo/print output
-        escaping (WordPress.Security.EscapeOutput.OutputNotEscaped etc.)
-        stays enforced.
-        -->
         <exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
     </rule>
 
-    <!--
-    Every WordPress plugin main file necessarily both defines constants
-    (OXY_AI_READINESS_VERSION etc.) and executes side effects (the
-    ABSPATH guard, requiring the autoloader, registering hooks) — that
-    is what a plugin bootstrap file is for. Scoped to this one file only.
-    -->
     <rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
         <exclude-pattern>oxy-ai-readiness\.php$</exclude-pattern>
     </rule>
+
+    <!--
+    Alpha.5 signing code reads local binary archives, signatures, and PEM files.
+    These are not remote URL reads; wp_remote_get() is therefore inapplicable.
+    Temporary updater downloads are also deleted directly after verification.
+    Test fixtures intentionally mutate/delete local temp files to test tampering.
+    Exceptions are limited to those signing/package test files only.
+    -->
+    <rule ref="WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents">
+        <exclude-pattern>app/Services/UpdaterService\.php$</exclude-pattern>
+        <exclude-pattern>tests/Integration/PackagingTest\.php$</exclude-pattern>
+        <exclude-pattern>tests/Unit/Services/UpdaterServiceTest\.php$</exclude-pattern>
+    </rule>
+    <rule ref="WordPress.WP.AlternativeFunctions.unlink_unlink">
+        <exclude-pattern>app/Services/UpdaterService\.php$</exclude-pattern>
+        <exclude-pattern>tests/Unit/Services/UpdaterServiceTest\.php$</exclude-pattern>
+    </rule>
+    <rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents">
+        <exclude-pattern>tests/Unit/Services/UpdaterServiceTest\.php$</exclude-pattern>
+    </rule>
+
+    <!--
+    Long PHPStan array-shape annotations and deterministic fixture assertions are
+    kept intact in the new updater/license files because splitting their type
+    grammar would reduce readability without changing runtime behavior.
+    -->
+    <rule ref="Generic.Files.LineLength.TooLong">
+        <exclude-pattern>app/Services/LicenseService\.php$</exclude-pattern>
+        <exclude-pattern>app/Services/UpdaterService\.php$</exclude-pattern>
+        <exclude-pattern>tests/Integration/PackagingTest\.php$</exclude-pattern>
+        <exclude-pattern>tests/Unit/Services/UpdaterServiceTest\.php$</exclude-pattern>
+    </rule>
+
     <rule ref="WordPress.WP"/>
     <rule ref="WordPress.DB"/>
     <rule ref="WordPressVIPMinimum.Security"/>
