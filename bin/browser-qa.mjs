@@ -59,7 +59,7 @@ try {
         });
         await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
         await page.getByRole('button', { name: 'License & Updates' }).click();
-        await page.getByRole('heading', { name: 'License & Updates' }).waitFor();
+        await page.getByRole('main').getByRole('heading', { name: 'License & Updates' }).waitFor();
         await page.screenshot({ path: join(root, 'build/browser-qa', filename), fullPage: true });
         await page.close();
     }
