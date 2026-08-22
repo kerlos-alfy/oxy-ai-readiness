@@ -8,6 +8,7 @@ import LlmsPage from './Llms/LlmsPage';
 import MarkdownPage from './Markdown/MarkdownPage';
 import HeadersPage from './Headers/HeadersPage';
 import ContentSignalsPage from './ContentSignals/ContentSignalsPage';
+import LicenseUpdatesPage from './Settings/LicenseUpdatesPage';
 
 const SCREENS: Record<string, () => JSX.Element> = {
     dashboard: DashboardPage,
@@ -17,6 +18,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
     markdown: MarkdownPage,
     headers: HeadersPage,
     'content-signals': ContentSignalsPage,
+    'license-updates': LicenseUpdatesPage,
 };
 
 export default function App(): JSX.Element {

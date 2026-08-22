@@ -35,7 +35,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiEnvelope
         },
     });
 
-    return (await response.json()) as ApiEnvelope<T>;
+    const payload = (await response.json()) as ApiEnvelope<T> & { message?: string };
+    if (response.ok === false) {
+        throw new Error(payload.message ?? `Request failed with HTTP ${response.status}`);
+    }
+
+    return payload;
 }
 
 export function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
@@ -44,4 +49,8 @@ export function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
 
 export function apiPost<T>(path: string, body?: Record<string, unknown>): Promise<ApiEnvelope<T>> {
     return request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+}
+
+export function apiDelete<T>(path: string): Promise<ApiEnvelope<T>> {
+    return request<T>(path, { method: 'DELETE' });
 }

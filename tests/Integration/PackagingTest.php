@@ -7,17 +7,6 @@ namespace OxyAI\Tests\Integration;
 use PHPUnit\Framework\TestCase;
 use ZipArchive;
 
-/**
- * Exercises `bin/build-release.sh` for real — a genuine integration
- * test (spawns Composer as a subprocess, writes real files to disk,
- * inspects a real zip archive) per docs/28-Testing-Strategy.md's own
- * "PACKAGE TESTING" checklist ("Correct Files Included," "Development
- * Files Excluded," "Vendor Dependencies Included," "Correct
- * Checksums"). Skips itself (rather than failing) when
- * `dist/.vite/manifest.json` doesn't exist yet — that's `npm run
- * build`'s job, not this script's, and not every environment running
- * `composer test:integration` will have run it first.
- */
 final class PackagingTest extends TestCase
 {
     private static string $repoRoot;
@@ -26,19 +15,13 @@ final class PackagingTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$repoRoot = dirname(__DIR__, 2);
-
         if (!file_exists(self::$repoRoot . '/dist/.vite/manifest.json')) {
             self::markTestSkipped("dist/.vite/manifest.json is missing — run 'npm run build' first.");
         }
 
         $output = [];
         $exitCode = 0;
-        exec(
-            sprintf('bash %s 2>&1', escapeshellarg(self::$repoRoot . '/bin/build-release.sh')),
-            $output,
-            $exitCode
-        );
-
+        exec(sprintf('bash %s 2>&1', escapeshellarg(self::$repoRoot . '/bin/build-release.sh')), $output, $exitCode);
         if ($exitCode !== 0) {
             self::fail("build-release.sh failed (exit {$exitCode}):\n" . implode("\n", $output));
         }
@@ -51,76 +34,70 @@ final class PackagingTest extends TestCase
     public static function tearDownAfterClass(): void
     {
         $buildDir = self::$repoRoot . '/build';
-
         if (is_dir($buildDir)) {
             foreach (glob($buildDir . '/*') ?: [] as $file) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- build/test tooling, not WordPress runtime; no WP_Filesystem context here.
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- build/test tooling.
                 unlink($file);
             }
-
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- see above.
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- build/test tooling.
             rmdir($buildDir);
         }
     }
 
-    public function test_build_produces_a_zip_with_a_matching_checksum_file(): void
+    public function test_build_produces_zip_with_matching_md5_and_sha256(): void
     {
-        self::assertNotNull(self::$zipPath, 'Expected build-release.sh to produce a .zip file.');
+        self::assertNotNull(self::$zipPath);
+        self::assertFileExists(self::$zipPath . '.md5');
         self::assertFileExists(self::$zipPath . '.sha256');
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reading this test's own local build artifact, not a remote URL.
-        $checksumFileContents = (string) file_get_contents(self::$zipPath . '.sha256');
-        $expectedChecksum = trim(explode(' ', $checksumFileContents)[0]);
-        self::assertSame($expectedChecksum, hash_file('sha256', self::$zipPath));
+        $md5 = trim(explode(' ', (string) file_get_contents(self::$zipPath . '.md5'))[0]);
+        $sha256 = trim(explode(' ', (string) file_get_contents(self::$zipPath . '.sha256'))[0]);
+        self::assertSame($md5, hash_file('md5', self::$zipPath));
+        self::assertSame($sha256, hash_file('sha256', self::$zipPath));
     }
 
-    public function test_package_excludes_every_development_only_path(): void
+    public function test_package_excludes_development_and_test_signing_material(): void
     {
-        $zip = new ZipArchive();
-        $zip->open((string) self::$zipPath);
-
-        $names = [];
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $names[] = $zip->getNameIndex($i);
-        }
-        $zip->close();
-
-        $forbiddenPaths = ['tests/', '.project/', 'docs/', 'node_modules/', '.git/', '.github/', 'assets/react/'];
-
-        foreach ($forbiddenPaths as $forbidden) {
+        $names = $this->archiveNames();
+        $forbidden = ['tests/', 'fixtures/', '.project/', 'docs/', 'node_modules/', '.git/', '.github/', 'assets/react/', 'test-private.pem'];
+        foreach ($forbidden as $needle) {
             foreach ($names as $name) {
-                self::assertStringNotContainsString(
-                    $forbidden,
-                    $name,
-                    sprintf('"%s" leaked into the package via "%s".', $forbidden, $name)
-                );
+                self::assertStringNotContainsString($needle, $name, sprintf('"%s" leaked via "%s".', $needle, $name));
             }
         }
     }
 
-    public function test_package_includes_every_runtime_path_and_no_dev_only_vendor_packages(): void
+    public function test_package_includes_runtime_paths_and_dev_public_key_only(): void
+    {
+        $names = $this->archiveNames();
+        $required = ['app/', 'routes/', 'dist/', 'resources/updater/public-key.pem', 'oxy-ai-readiness.php', 'uninstall.php', 'vendor/autoload.php'];
+        foreach ($required as $needle) {
+            self::assertTrue((bool) array_filter($names, static fn (string $name): bool => str_contains($name, $needle)), sprintf('Expected "%s".', $needle));
+        }
+
+        self::assertFalse((bool) array_filter($names, static fn (string $name): bool => str_contains($name, 'vendor/phpunit')));
+
+        $zip = new ZipArchive();
+        $zip->open((string) self::$zipPath);
+        $key = (string) $zip->getFromName('oxy-ai-readiness/resources/updater/public-key.pem');
+        $zip->close();
+        self::assertStringContainsString('# DEVELOPMENT KEY - REPLACE BEFORE PRODUCTION RELEASE', $key);
+        self::assertStringNotContainsString('PRIVATE KEY', $key);
+    }
+
+    /** @return array<int, string> */
+    private function archiveNames(): array
     {
         $zip = new ZipArchive();
         $zip->open((string) self::$zipPath);
-
         $names = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {
-            $names[] = $zip->getNameIndex($i);
+            $name = $zip->getNameIndex($i);
+            if (is_string($name)) {
+                $names[] = $name;
+            }
         }
         $zip->close();
-
-        $requiredPaths = ['app/', 'routes/', 'dist/', 'oxy-ai-readiness.php', 'uninstall.php', 'vendor/autoload.php'];
-
-        foreach ($requiredPaths as $required) {
-            self::assertTrue(
-                (bool) array_filter($names, static fn (string $name): bool => str_contains($name, $required)),
-                sprintf('Expected "%s" to be present in the package.', $required)
-            );
-        }
-
-        self::assertFalse(
-            (bool) array_filter($names, static fn (string $name): bool => str_contains($name, 'vendor/phpunit')),
-            'Dev-only vendor/phpunit leaked into the package.'
-        );
+        return $names;
     }
 }

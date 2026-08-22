@@ -1,4 +1,4 @@
-type BadgeTone = 'success' | 'warning' | 'danger' | 'info';
+type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 interface BadgeProps {
     tone: BadgeTone;
@@ -10,6 +10,7 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
     warning: 'bg-warning/10 text-warning',
     danger: 'bg-danger/10 text-danger',
     info: 'bg-primary/10 text-primary',
+    neutral: 'bg-slate-100 text-slate-600',
 };
 
 export default function Badge({ tone, children }: BadgeProps): JSX.Element {
