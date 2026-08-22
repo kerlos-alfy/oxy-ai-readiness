@@ -90,7 +90,7 @@ final class Plugin
         }
 
         wp_mkdir_p($this->config->pluginDir() . 'storage/generated');
-        $this->app->make(LicenseService::class)->activateCron();
+        (new LicenseService())->activateCron();
     }
 
     private function activateCurrentSite(): void
@@ -105,7 +105,7 @@ final class Plugin
 
     public function deactivate(bool $networkWide = false): void
     {
-        $this->app->make(LicenseService::class)->deactivateCron();
+        (new LicenseService())->deactivateCron();
     }
 
     public function application(): Application
