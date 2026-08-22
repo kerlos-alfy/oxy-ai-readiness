@@ -5,6 +5,7 @@
  *
  * @package OxyAI
  */
+
 declare(strict_types=1);
 
 namespace OxyAI\Http\Controllers;
@@ -53,7 +54,10 @@ final class UpdaterController
 
     public function preview(WP_REST_Request $request): WP_REST_Response
     {
-        return new WP_REST_Response(['success' => true, 'data' => ['content' => $this->generation->preview(self::GENERATOR_ID)]], 200);
+        return new WP_REST_Response([
+            'success' => true,
+            'data' => ['content' => $this->generation->preview(self::GENERATOR_ID)],
+        ], 200);
     }
 
     public function save(WP_REST_Request $request): WP_REST_Response
@@ -71,7 +75,10 @@ final class UpdaterController
     {
         $map = $this->discovery->map();
         if (!isset($map[self::RESOURCE_ID])) {
-            return new WP_REST_Response(['success' => false, 'message' => 'Updater status has not been discovered.'], 404);
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'Updater status has not been discovered.',
+            ], 404);
         }
 
         $results = $this->validation->validate($map[self::RESOURCE_ID]);
@@ -124,7 +131,11 @@ final class UpdaterController
 
         $key = $request->get_param('key');
         if (!is_string($key)) {
-            return new WP_Error('oxy_ai_license_key', __('A license key is required.', 'oxy-ai-readiness'), ['status' => 400]);
+            return new WP_Error(
+                'oxy_ai_license_key',
+                __('A license key is required.', 'oxy-ai-readiness'),
+                ['status' => 400]
+            );
         }
 
         $state = $this->license->activate($key);
@@ -142,7 +153,6 @@ final class UpdaterController
         }
 
         $this->license->clear();
-
         return new WP_REST_Response(['success' => true, 'data' => $this->updater->status()], 200);
     }
 
@@ -154,16 +164,23 @@ final class UpdaterController
 
         $enabled = $request->get_param('enabled');
         if (!is_bool($enabled)) {
-            return new WP_Error('oxy_ai_auto_update', __('The enabled field must be boolean.', 'oxy-ai-readiness'), ['status' => 400]);
+            return new WP_Error(
+                'oxy_ai_auto_update',
+                __('The enabled field must be boolean.', 'oxy-ai-readiness'),
+                ['status' => 400]
+            );
         }
 
         $this->updater->setAutoUpdate($enabled);
-
         return new WP_REST_Response(['success' => true, 'data' => $this->updater->status()], 200);
     }
 
     private function serviceUnavailable(): WP_Error
     {
-        return new WP_Error('oxy_ai_updater_unavailable', __('The updater service is unavailable.', 'oxy-ai-readiness'), ['status' => 503]);
+        return new WP_Error(
+            'oxy_ai_updater_unavailable',
+            __('The updater service is unavailable.', 'oxy-ai-readiness'),
+            ['status' => 503]
+        );
     }
 }
