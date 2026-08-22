@@ -31,7 +31,7 @@
         "test": "phpunit --testsuite=Unit --no-coverage",
         "test:coverage": "phpunit --testsuite=Unit",
         "test:integration": "phpunit --testsuite=Integration --no-coverage",
-        "analyse": "phpstan analyse --memory-limit=512M",
+        "analyse": "phpstan analyse --memory-limit=1G",
         "lint": "phpcs",
         "quality": [
             "@lint",
