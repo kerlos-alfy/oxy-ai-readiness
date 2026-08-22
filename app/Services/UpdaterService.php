@@ -36,9 +36,7 @@ final class UpdaterService
         add_filter('auto_update_plugin', [$this, 'filterAutoUpdate'], 10, 2);
     }
 
-    /**
-     * @return array<string, mixed>|WP_Error|null
-     */
+    /** @return array<string, mixed>|WP_Error|null */
     public function manifest(bool $force = false): array|WP_Error|null
     {
         if (!$force) {
@@ -61,7 +59,6 @@ final class UpdaterService
             'redirection' => 3,
             'sslverify' => true,
         ]);
-
         update_option(self::LAST_CHECKED_OPTION, gmdate('c'), false);
 
         if (is_wp_error($response)) {
@@ -101,18 +98,18 @@ final class UpdaterService
 
         $parsed['changelog'] = $this->fetchChangelog((string) $parsed['changelog_url']);
         set_site_transient(self::MANIFEST_TRANSIENT, $parsed, self::MANIFEST_TTL);
-
         return $parsed;
     }
 
-    /**
-     * @return array<string, mixed>|WP_Error
-     */
+    /** @return array<string, mixed>|WP_Error */
     public function parseManifest(string $json): array|WP_Error
     {
         $manifest = json_decode($json, true);
         if (!is_array($manifest)) {
-            return new WP_Error('oxy_ai_manifest_json', __('The update manifest is not valid JSON.', 'oxy-ai-readiness'));
+            return new WP_Error(
+                'oxy_ai_manifest_json',
+                __('The update manifest is not valid JSON.', 'oxy-ai-readiness')
+            );
         }
 
         $required = [
@@ -140,8 +137,12 @@ final class UpdaterService
         }
 
         foreach (['download_url', 'signature_url', 'changelog_url'] as $urlField) {
-            if (wp_http_validate_url($manifest[$urlField]) === false) {
-                return new WP_Error('oxy_ai_manifest_url', __('The update manifest contains an invalid URL.', 'oxy-ai-readiness'));
+            $candidate = (string) $manifest[$urlField];
+            if (filter_var($candidate, FILTER_VALIDATE_URL) === false) {
+                return new WP_Error(
+                    'oxy_ai_manifest_url',
+                    __('The update manifest contains an invalid URL.', 'oxy-ai-readiness')
+                );
             }
         }
 
@@ -159,7 +160,7 @@ final class UpdaterService
      */
     public function filterUpdateTransient(mixed $transient): mixed
     {
-        if (!is_object($transient)) {
+        if (!$transient instanceof stdClass) {
             return $transient;
         }
 
@@ -207,19 +208,20 @@ final class UpdaterService
         $info->last_updated = (string) ($manifest['released_at'] ?? '');
         $info->homepage = (string) ($manifest['changelog_url'] ?? '');
         $info->sections = [
-            'description' => __('Signed updates for Oxy AI Readiness are delivered from the configured update service.', 'oxy-ai-readiness'),
-            'changelog' => $this->changelogHtml((string) ($manifest['changelog'] ?? ''), (string) ($manifest['changelog_url'] ?? '')),
+            'description' => __(
+                'Signed updates for Oxy AI Readiness are delivered from the configured update service.',
+                'oxy-ai-readiness'
+            ),
+            'changelog' => $this->changelogHtml(
+                (string) ($manifest['changelog'] ?? ''),
+                (string) ($manifest['changelog_url'] ?? '')
+            ),
         ];
 
         return $info;
     }
 
-    /**
-     * Downloads the package and detached signature ourselves so WordPress
-     * receives a local ZIP only after verification succeeds.
-     *
-     * @param array<string, mixed> $hookExtra
-     */
+    /** @param array<string, mixed> $hookExtra */
     public function verifyBeforeDownload(mixed $reply, string $package, object $upgrader, array $hookExtra): mixed
     {
         if (($hookExtra['plugin'] ?? null) !== $this->pluginBasename()) {
@@ -228,13 +230,19 @@ final class UpdaterService
 
         $manifest = get_site_transient(self::MANIFEST_TRANSIENT);
         if (!is_array($manifest)) {
-            return $this->verificationFailure('manifest_missing', __('The cached update manifest is missing; the package cannot be verified.', 'oxy-ai-readiness'));
+            return $this->verificationFailure(
+                'manifest_missing',
+                __('The cached update manifest is missing; the package cannot be verified.', 'oxy-ai-readiness')
+            );
         }
 
         $expectedPackage = (string) ($manifest['download_url'] ?? '');
         $signatureUrl = (string) ($manifest['signature_url'] ?? '');
         if ($expectedPackage === '' || $signatureUrl === '' || !hash_equals($expectedPackage, $package)) {
-            return $this->verificationFailure('package_mismatch', __('The update package does not match the signed manifest.', 'oxy-ai-readiness'));
+            return $this->verificationFailure(
+                'package_mismatch',
+                __('The update package does not match the signed manifest.', 'oxy-ai-readiness')
+            );
         }
 
         if (!function_exists('download_url')) {
@@ -257,14 +265,20 @@ final class UpdaterService
 
         if (!$verified) {
             @unlink($zipPath);
-            return $this->verificationFailure('signature_invalid', __('Update signature verification failed. Installation was refused.', 'oxy-ai-readiness'));
+            return $this->verificationFailure(
+                'signature_invalid',
+                __('Update signature verification failed. Installation was refused.', 'oxy-ai-readiness')
+            );
         }
 
         return $zipPath;
     }
 
-    public function verifySignature(string $archivePath, string $signaturePath, ?string $publicKeyPath = null): bool
-    {
+    public function verifySignature(
+        string $archivePath,
+        string $signaturePath,
+        ?string $publicKeyPath = null
+    ): bool {
         if (!function_exists('openssl_verify') || !is_file($archivePath) || !is_file($signaturePath)) {
             return false;
         }
@@ -281,7 +295,8 @@ final class UpdaterService
             return false;
         }
 
-        $publicKey = openssl_pkey_get_public($key);
+        $pem = preg_replace('/^#.*\R/m', '', $key) ?? $key;
+        $publicKey = openssl_pkey_get_public($pem);
         if ($publicKey === false) {
             return false;
         }
@@ -304,9 +319,7 @@ final class UpdaterService
         update_option(self::AUTO_UPDATE_OPTION, $enabled, false);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function status(): array
     {
         $manifest = get_site_transient(self::MANIFEST_TRANSIENT);
@@ -318,9 +331,12 @@ final class UpdaterService
             'current_version' => $this->currentVersion(),
             'latest_version' => $latest,
             'update_available' => $latest !== null && $this->versionRelation($latest) > 0,
-            'released_at' => $manifest !== null && is_string($manifest['released_at'] ?? null) ? $manifest['released_at'] : null,
-            'changelog_url' => $manifest !== null && is_string($manifest['changelog_url'] ?? null) ? $manifest['changelog_url'] : null,
-            'changelog' => $manifest !== null && is_string($manifest['changelog'] ?? null) ? $manifest['changelog'] : '',
+            'released_at' => $manifest !== null && is_string($manifest['released_at'] ?? null)
+                ? $manifest['released_at'] : null,
+            'changelog_url' => $manifest !== null && is_string($manifest['changelog_url'] ?? null)
+                ? $manifest['changelog_url'] : null,
+            'changelog' => $manifest !== null && is_string($manifest['changelog'] ?? null)
+                ? $manifest['changelog'] : '',
             'last_checked' => is_string($lastChecked) ? $lastChecked : null,
             'auto_update' => (bool) get_option(self::AUTO_UPDATE_OPTION, false),
             'license' => $this->license->state(),
@@ -333,9 +349,7 @@ final class UpdaterService
         ];
     }
 
-    /**
-     * @return array<int, array<string, string>>
-     */
+    /** @return array<int, array<string, string>> */
     public function securityEvents(): array
     {
         $events = get_option(self::SECURITY_EVENTS_OPTION, []);
@@ -377,12 +391,16 @@ final class UpdaterService
 
     private function currentVersion(): string
     {
-        return defined('OXY_AI_READINESS_VERSION') ? (string) OXY_AI_READINESS_VERSION : '1.0.0-alpha.5';
+        return defined('OXY_AI_READINESS_VERSION')
+            ? (string) OXY_AI_READINESS_VERSION
+            : '1.0.0-alpha.5';
     }
 
     private function pluginBasename(): string
     {
-        $file = defined('OXY_AI_READINESS_FILE') ? (string) OXY_AI_READINESS_FILE : dirname(__DIR__, 2) . '/oxy-ai-readiness.php';
+        $file = defined('OXY_AI_READINESS_FILE')
+            ? (string) OXY_AI_READINESS_FILE
+            : dirname(__DIR__, 2) . '/oxy-ai-readiness.php';
 
         return plugin_basename($file);
     }
@@ -411,7 +429,11 @@ final class UpdaterService
         }
 
         if ($url !== '') {
-            return sprintf('<p><a href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>', esc_url($url), esc_html__('View changelog', 'oxy-ai-readiness'));
+            return sprintf(
+                '<p><a href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>',
+                esc_url($url),
+                esc_html__('View changelog', 'oxy-ai-readiness')
+            );
         }
 
         return '<p>' . esc_html__('No changelog has been fetched yet.', 'oxy-ai-readiness') . '</p>';
@@ -424,7 +446,6 @@ final class UpdaterService
         }
 
         $url = self_admin_url('update.php?action=upgrade-plugin&plugin=' . rawurlencode($this->pluginBasename()));
-
         return wp_nonce_url($url, 'upgrade-plugin_' . $this->pluginBasename());
     }
 }
