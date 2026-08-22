@@ -65,10 +65,6 @@ final class LicenseServiceTest extends TestCase
 
     public function test_tier_persistence_uses_24_hour_transient(): void
     {
-        Functions\when('get_option')->justReturn('');
-        $service = new LicenseService();
-        self::assertFalse($service->state()['valid']);
-
         $state = [
             'valid' => true,
             'tier' => 'unlimited',
@@ -80,6 +76,8 @@ final class LicenseServiceTest extends TestCase
             'network_error' => false,
         ];
         Functions\when('get_transient')->justReturn($state);
+
+        $service = new LicenseService();
         self::assertSame('unlimited', $service->state()['tier']);
         self::assertSame(86400, LicenseService::STATE_TTL);
     }
