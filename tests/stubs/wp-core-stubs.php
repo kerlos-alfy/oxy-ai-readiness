@@ -9,7 +9,7 @@
  * environment or for `php-stubs/wordpress-stubs` (added as a dev
  * dependency for PHPStan; PHPStan analyses `app/`, never this file).
  * They exist only so unit tests can construct plain WP_User/WP_Post/
- * WP_REST_Request/WP_REST_Response value objects and mock
+ * WP_REST_Request/WP_REST_Response/WP_Error value objects and mock
  * WP_Filesystem_Base's public surface, without loading WordPress
  * itself.
  *
@@ -17,6 +17,35 @@
  */
 
 declare(strict_types=1);
+
+if (!class_exists('WP_Error')) {
+    class WP_Error
+    {
+        /** @param array<string, mixed> $data */
+        public function __construct(
+            private string $code = '',
+            private string $message = '',
+            private array $data = []
+        ) {
+        }
+
+        public function get_error_code(): string
+        {
+            return $this->code;
+        }
+
+        public function get_error_message(): string
+        {
+            return $this->message;
+        }
+
+        /** @return array<string, mixed> */
+        public function get_error_data(): array
+        {
+            return $this->data;
+        }
+    }
+}
 
 if (!class_exists('WP_User')) {
     class WP_User
@@ -57,14 +86,10 @@ if (!class_exists('WP_Filesystem_Base')) {
 
         abstract public function is_dir(string $path): bool;
 
-        /**
-         * @return string|false
-         */
+        /** @return string|false */
         abstract public function get_contents(string $file);
 
-        /**
-         * @param int|false $mode
-         */
+        /** @param int|false $mode */
         abstract public function put_contents(string $file, string $contents, $mode = false): bool;
 
         abstract public function delete(string $file, bool $recursive = false, ?string $type = null): bool;
