@@ -5,7 +5,6 @@
  *
  * @package OxyAI
  */
-
 declare(strict_types=1);
 
 namespace OxyAI\Services;
@@ -17,7 +16,7 @@ final class LicenseService
     public const OPTION_KEY = 'license_key';
     public const STATE_TRANSIENT = 'oxy_ai_license_state';
     public const CRON_HOOK = 'oxy_ai_license_recheck';
-    public const STATE_TTL = DAY_IN_SECONDS;
+    public const STATE_TTL = 86400;
 
     private const CIPHER = 'aes-256-gcm';
     private const FORMAT_PREFIX = 'v1:';
@@ -26,6 +25,7 @@ final class LicenseService
     {
         add_action(self::CRON_HOOK, [$this, 'recheck']);
         add_action('admin_notices', [$this, 'renderInvalidNotice']);
+        $this->activateCron();
     }
 
     public function activateCron(): void
@@ -46,7 +46,6 @@ final class LicenseService
     public function state(): array
     {
         $state = get_transient(self::STATE_TRANSIENT);
-
         if (is_array($state)) {
             return $this->normalizeState($state);
         }
@@ -67,7 +66,6 @@ final class LicenseService
         }
 
         $suffix = strlen($key) > 4 ? substr($key, -4) : $key;
-
         return str_repeat('•', 12) . $suffix;
     }
 
@@ -97,7 +95,6 @@ final class LicenseService
         }
 
         update_option(self::OPTION_KEY, $encrypted, false);
-
         return $this->validate(true);
     }
 
@@ -124,14 +121,7 @@ final class LicenseService
             return $this->emptyState();
         }
 
-        $url = add_query_arg(
-            [
-                'license' => $key,
-                'site' => site_url(),
-            ],
-            $this->manifestUrl()
-        );
-
+        $url = add_query_arg(['license' => $key, 'site' => site_url()], $this->manifestUrl());
         $response = wp_remote_get($url, [
             'timeout' => 15,
             'redirection' => 3,
@@ -139,18 +129,7 @@ final class LicenseService
         ]);
 
         if (is_wp_error($response)) {
-            $existing = get_transient(self::STATE_TRANSIENT);
-            if (is_array($existing)) {
-                $preserved = $this->normalizeState($existing);
-                $preserved['network_error'] = true;
-                return $preserved;
-            }
-
-            return new WP_Error(
-                'oxy_ai_license_network',
-                __('License validation could not reach the update service. Your existing access has not been changed.', 'oxy-ai-readiness'),
-                ['status' => 503]
-            );
+            return $this->preserveOnNetworkError();
         }
 
         $code = (int) wp_remote_retrieve_response_code($response);
@@ -162,27 +141,16 @@ final class LicenseService
         }
 
         if ($code !== 200) {
-            $existing = get_transient(self::STATE_TRANSIENT);
-            if (is_array($existing)) {
-                $preserved = $this->normalizeState($existing);
-                $preserved['network_error'] = true;
-                return $preserved;
-            }
-
-            return new WP_Error(
-                'oxy_ai_license_http',
-                sprintf(
-                    /* translators: %d: HTTP response code. */
-                    __('License validation returned HTTP %d. Existing access was not changed.', 'oxy-ai-readiness'),
-                    $code
-                ),
-                ['status' => 503]
-            );
+            return $this->preserveOnNetworkError();
         }
 
         $body = json_decode((string) wp_remote_retrieve_body($response), true);
         if (!is_array($body)) {
-            return new WP_Error('oxy_ai_license_malformed', __('The license response was malformed.', 'oxy-ai-readiness'), ['status' => 502]);
+            return new WP_Error(
+                'oxy_ai_license_malformed',
+                __('The license response was malformed.', 'oxy-ai-readiness'),
+                ['status' => 502]
+            );
         }
 
         $payload = isset($body['license']) && is_array($body['license']) ? $body['license'] : $body;
@@ -192,7 +160,6 @@ final class LicenseService
         }
 
         set_transient(self::STATE_TRANSIENT, $state, self::STATE_TTL);
-
         return $state;
     }
 
@@ -231,14 +198,29 @@ final class LicenseService
     private function encrypt(string $plaintext): string|WP_Error
     {
         if (!function_exists('openssl_encrypt')) {
-            return new WP_Error('oxy_ai_license_crypto', __('OpenSSL is required to encrypt the license key.', 'oxy-ai-readiness'), ['status' => 500]);
+            return new WP_Error(
+                'oxy_ai_license_crypto',
+                __('OpenSSL is required to encrypt the license key.', 'oxy-ai-readiness'),
+                ['status' => 500]
+            );
         }
 
         $iv = random_bytes(12);
         $tag = '';
-        $ciphertext = openssl_encrypt($plaintext, self::CIPHER, $this->encryptionKey(), OPENSSL_RAW_DATA, $iv, $tag);
+        $ciphertext = openssl_encrypt(
+            $plaintext,
+            self::CIPHER,
+            $this->encryptionKey(),
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag
+        );
         if (!is_string($ciphertext) || $tag === '') {
-            return new WP_Error('oxy_ai_license_crypto', __('The license key could not be encrypted.', 'oxy-ai-readiness'), ['status' => 500]);
+            return new WP_Error(
+                'oxy_ai_license_crypto',
+                __('The license key could not be encrypted.', 'oxy-ai-readiness'),
+                ['status' => 500]
+            );
         }
 
         return self::FORMAT_PREFIX . base64_encode($iv . $tag . $ciphertext);
@@ -258,7 +240,14 @@ final class LicenseService
         $iv = substr($decoded, 0, 12);
         $tag = substr($decoded, 12, 16);
         $ciphertext = substr($decoded, 28);
-        $plaintext = openssl_decrypt($ciphertext, self::CIPHER, $this->encryptionKey(), OPENSSL_RAW_DATA, $iv, $tag);
+        $plaintext = openssl_decrypt(
+            $ciphertext,
+            self::CIPHER,
+            $this->encryptionKey(),
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag
+        );
 
         return is_string($plaintext) ? $plaintext : null;
     }
@@ -267,7 +256,6 @@ final class LicenseService
     {
         $auth = defined('AUTH_KEY') ? (string) AUTH_KEY : '';
         $secure = defined('SECURE_AUTH_KEY') ? (string) SECURE_AUTH_KEY : '';
-
         return hash('sha256', $auth . '|' . $secure . '|oxy-ai-license-v1', true);
     }
 
@@ -287,11 +275,14 @@ final class LicenseService
         $tier = $payload['tier'] ?? null;
         $valid = (bool) ($payload['valid'] ?? true);
         if ($valid && (!is_string($tier) || !in_array($tier, ['personal', 'agency', 'unlimited'], true))) {
-            return new WP_Error('oxy_ai_license_tier', __('The license response contained an unknown tier.', 'oxy-ai-readiness'), ['status' => 502]);
+            return new WP_Error(
+                'oxy_ai_license_tier',
+                __('The license response contained an unknown tier.', 'oxy-ai-readiness'),
+                ['status' => 502]
+            );
         }
 
         $expires = $payload['expires_at'] ?? null;
-
         return [
             'valid' => $valid,
             'tier' => $valid && is_string($tier) ? $tier : null,
@@ -302,6 +293,18 @@ final class LicenseService
             'checked_at' => gmdate('c'),
             'network_error' => false,
         ];
+    }
+
+    /**
+     * @return array{valid: bool, tier: string|null, sites_used: int, sites_max: int, expires_at: string|null, trial: bool, checked_at: string|null, network_error: bool}
+     */
+    private function preserveOnNetworkError(): array
+    {
+        $existing = get_transient(self::STATE_TRANSIENT);
+        $state = is_array($existing) ? $this->normalizeState($existing) : $this->emptyState();
+        $state['network_error'] = true;
+        set_transient(self::STATE_TRANSIENT, $state, self::STATE_TTL);
+        return $state;
     }
 
     /**
