@@ -31,6 +31,10 @@ final class LicenseService
 
     public function activateCron(): void
     {
+        if (!function_exists('wp_next_scheduled') || !function_exists('wp_schedule_event')) {
+            return;
+        }
+
         if (wp_next_scheduled(self::CRON_HOOK) === false) {
             wp_schedule_event(time() + self::STATE_TTL, 'daily', self::CRON_HOOK);
         }
@@ -38,7 +42,9 @@ final class LicenseService
 
     public function deactivateCron(): void
     {
-        wp_clear_scheduled_hook(self::CRON_HOOK);
+        if (function_exists('wp_clear_scheduled_hook')) {
+            wp_clear_scheduled_hook(self::CRON_HOOK);
+        }
     }
 
     /**
