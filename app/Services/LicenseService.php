@@ -216,7 +216,7 @@ final class LicenseService
             $iv,
             $tag
         );
-        if (!is_string($ciphertext) || $tag === '') {
+        if (!is_string($ciphertext)) {
             return new WP_Error(
                 'oxy_ai_license_crypto',
                 __('The license key could not be encrypted.', 'oxy-ai-readiness'),
@@ -289,7 +289,7 @@ final class LicenseService
             'tier' => $valid && is_string($tier) ? $tier : null,
             'sites_used' => max(0, (int) ($payload['sites_used'] ?? 0)),
             'sites_max' => max(0, (int) ($payload['sites_max'] ?? 0)),
-            'expires_at' => is_string($expires) && $expires !== '' ? $expires : null,
+            'expires_at' => is_string($expires) ? $expires : null,
             'trial' => (bool) ($payload['trial'] ?? false),
             'checked_at' => gmdate('c'),
             'network_error' => false,
