@@ -5,6 +5,7 @@
  *
  * @package OxyAI
  */
+
 declare(strict_types=1);
 
 namespace OxyAI\Core;
