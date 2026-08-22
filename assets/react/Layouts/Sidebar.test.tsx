@@ -17,6 +17,15 @@ describe('Sidebar', () => {
     it('renders only nav items with a real REST-backed screen', () => {
         const ids = NAV_ITEMS.map((item) => item.id);
 
-        expect(ids).toEqual(['dashboard', 'audit', 'robots', 'llms', 'markdown', 'headers', 'content-signals']);
+        expect(ids).toEqual([
+            'dashboard',
+            'audit',
+            'robots',
+            'llms',
+            'markdown',
+            'headers',
+            'content-signals',
+            'license-updates',
+        ]);
     });
 });
