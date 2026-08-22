@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "download_url": "https://updates.example.test/oxy-ai-readiness-1.0.0.zip",
+  "signature_url": "https://updates.example.test/oxy-ai-readiness-1.0.0.zip.sig",
+  "requires_php": "8.1",
+  "requires_wp": "6.5",
+  "tested_wp": "6.7",
+  "changelog_url": "https://updates.example.test/changelog.md",
+  "released_at": "2026-08-23T00:00:00Z"
+}
