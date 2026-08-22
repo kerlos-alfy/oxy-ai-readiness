@@ -16,55 +16,57 @@ jobs:
         php: ['8.1', '8.2', '8.3', '8.4']
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
-
       - name: Validate composer.json
         run: composer validate --strict
-
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-progress
-
       - name: PHPCS (coding standards)
         run: composer lint
-
+      - name: PHP syntax
+        run: find app routes tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: PHPStan (static analysis, level 8)
         run: composer analyse
-
       - name: PHPUnit (unit tests)
         run: composer test
 
   frontend-quality:
-    name: Frontend quality (admin SPA)
+    name: Frontend quality + Chromium QA
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install npm dependencies
         run: npm ci
-
       - name: ESLint
         run: npm run lint
-
       - name: TypeScript typecheck
         run: npm run typecheck
-
       - name: Jest (unit tests)
         run: npm run test
-
       - name: Vite build
         run: npm run build
+      - name: Install Chromium QA runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Chromium browser QA
+        run: node bin/browser-qa.mjs
+      - name: Upload browser screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha5-browser-qa
+          path: build/browser-qa/*.png
+          if-no-files-found: error
 
   package:
     name: Build and verify distributable package
@@ -72,38 +74,38 @@ jobs:
     needs: [php-quality, frontend-quality]
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
           coverage: none
           tools: composer:v2
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-progress
-
       - name: Install npm dependencies
         run: npm ci
-
       - name: Build frontend assets
         run: npm run build
-
-      - name: Verify the package (tests/Integration/PackagingTest.php)
+      - name: Verify the package
         run: composer test:integration
-
       - name: Build release package
         run: bash bin/build-release.sh
-
+      - name: Smoke inspect ZIP
+        run: |
+          unzip -t build/oxy-ai-readiness-1.0.0-alpha.5.zip
+          unzip -p build/oxy-ai-readiness-1.0.0-alpha.5.zip oxy-ai-readiness/oxy-ai-readiness.php | grep -q 'Version:           1.0.0-alpha.5'
+          unzip -l build/oxy-ai-readiness-1.0.0-alpha.5.zip | grep -q 'resources/updater/public-key.pem'
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oxy-ai-readiness-plugin
-          path: build/*.zip
+          name: oxy-ai-readiness-alpha5
+          path: |
+            build/oxy-ai-readiness-1.0.0-alpha.5.zip
+            build/oxy-ai-readiness-1.0.0-alpha.5.zip.md5
+            build/oxy-ai-readiness-1.0.0-alpha.5.zip.sha256
           if-no-files-found: error
